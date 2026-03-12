@@ -1,98 +1,109 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { CURRENT_USER, FRIENDS, NUDGE } from '@/constants/mockData';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
-
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
-}
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {flex: 1, backgroundColor: '#0d0d18'},
+  content: {padding: 24, paddingTop: 60},
+
+  //header
+  header: {marginBottom: 28},
+  appName: {fontSize: 26, fontWeight: '800', color: '#ffc84a', marginBottom: 6},
+  greeting: {fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 2},
+  date: { fontSize: 13, color: '#555'},
+
+  //nudge card
+  nudgeCard: {
+    backgroundColor: '#1a1530',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,200,74,0.2)',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  nudgeLabel:{fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom:4},
+  nudgeDays: {fontSize:36, fontWeight:'800', color: '#ffc84a'},
+  nudgeActivity: {fontSize: 16, color: '#fff', marginBottom: 20},
+  planBtn:{
+    backgroundColor: '#ffc84a',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignSelf: 'flex-start',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  planBtnText:{color: '#1a1530', fontWeight: '700', fontSize: 14},
+
+  //hangouts list
+  sectionLabel:{
+    fontSize: 11, fontWeight :'700', letterSpacing: 2,
+    color: 'rgba(255,255,255,0.3)', marginBottom: 12,
   },
+  friendRow:{
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14, padding: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+
+  friendInfo:{flex: 1},
+  friendName: {fontSize: 14, fontWeight: '600', color: '#fff'},
+  friendActivity: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2},
+  badge: {borderRadius: 10, padding: 8, alignItems: 'center', minWidth: 52},
+  badgeSoon: {backgroundColor: 'rgba(255,200,74,0.12)'},
+  badgeOverdue: {backgroundColor: 'rgba(255,80,80,0.12)'},
+  badgeNum: {fontSize: 16, fontWeight:'800', color:'#fff'},
+  badgeLabel: {fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 1},
 });
+
+function getGreeting(){
+  const hour = new Date().getHours();
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+}
+
+export default function HomeScreen(){
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+
+  return (
+    <ScrollView style = {styles.container} contentContainerStyle={styles.content}>
+
+      {/*HEADER*/}
+      <View style = {styles.header}>
+        <View>
+          <Text style={styles.appName}>Hangout.</Text>
+          <Text style={styles.greeting}>Good {getGreeting()}, {CURRENT_USER.name}!</Text>
+          <Text style ={styles.date}>{today}</Text>
+        </View>
+      </View>
+
+      {/*NUDGE CARD*/}
+      <View style={styles.nudgeCard}>
+        <Text style={styles.nudgeLabel}>It's been a while...</Text>
+        <Text style={styles.nudgeDays}>{NUDGE.lastHangout} days since</Text>
+        <Text style={styles.nudgeActivity}>hanging with {NUDGE.name}</Text>
+        <TouchableOpacity style={styles.planBtn}>
+          <Text style={styles.planBtnText}>Plan something</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/*RECENT HANGOUTS LIST*/}
+      <Text style={styles.sectionLabel}>RECENT HANGOUTS</Text>
+      {FRIENDS.map((friend: typeof FRIENDS[0]) => (
+        <View key={friend.id} style={styles.friendRow}>
+          <View style={styles.friendInfo}>
+            <Text style={styles.friendName}>{friend.name}</Text>
+            <Text style={styles.friendActivity}>{friend.activity}</Text>
+          </View>
+          <View style={[styles.badge, friend.overdue ? styles.badgeOverdue : styles.badgeSoon]}>
+            <Text style={styles.badgeNum}>{friend.lastHangout}</Text>
+            <Text style={styles.badgeLabel}>{friend.overdue ? 'overdue' : 'days ago'}</Text>
+          </View>
+        </View>
+      ))}
+
+    </ScrollView>
+  );
+}
