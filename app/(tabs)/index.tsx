@@ -1,4 +1,5 @@
 import { CURRENT_USER, FRIENDS, NUDGE } from '@/constants/mockData';
+import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 
@@ -62,7 +63,10 @@ function getGreeting(){
   return 'evening';
 }
 
+
+
 export default function HomeScreen(){
+  const router = useRouter();
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
@@ -84,7 +88,7 @@ export default function HomeScreen(){
         <Text style={styles.nudgeLabel}>It's been a while...</Text>
         <Text style={styles.nudgeDays}>{NUDGE.lastHangout} days since</Text>
         <Text style={styles.nudgeActivity}>hanging with {NUDGE.name}</Text>
-        <TouchableOpacity style={styles.planBtn}>
+        <TouchableOpacity style={styles.planBtn} onPress={() => router.push('/schedule' as any)}>
           <Text style={styles.planBtnText}>Plan something</Text>
         </TouchableOpacity>
       </View>
