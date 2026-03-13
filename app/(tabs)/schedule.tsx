@@ -57,7 +57,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GUTTER = 20;
 const WEEK_TIME_W = 44;
 const WEEK_CELL_W = (SCREEN_WIDTH - GUTTER * 2 - WEEK_TIME_W) / 7;
-const CELL_SIZE = Math.floor((SCREEN_WIDTH - 40 - 2) / 7);
+const CELL_SIZE = Math.floor((SCREEN_WIDTH - GUTTER * 2 - 12) / 7);
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -445,10 +445,22 @@ const styles = StyleSheet.create({
   navLabel: { fontSize: 15, fontWeight: '600', color: THEME.text },
   monthGrid: { paddingHorizontal: GUTTER },
   dayHeaderRow: { flexDirection: 'row', marginBottom: 6 },
-  dayHeader: { width: CELL_SIZE, textAlign: 'center', fontSize: 11, color: THEME.textMuted, fontWeight: '600' },
-  calGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  calCell: { width: CELL_SIZE, aspectRatio: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  calCellBase: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: THEME.cardBorder },
+  dayHeader: { 
+    width: CELL_SIZE, 
+    textAlign: 'center', 
+    fontSize: 11, 
+    color: THEME.textMuted, 
+    fontWeight: '600' 
+  },  calGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
+  calCell: { 
+    width: CELL_SIZE, 
+    height: CELL_SIZE, 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+  },
+
+calCellBase: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: THEME.cardBorder },
   calCellUnavail: { backgroundColor: THEME.redDim, borderColor: 'rgba(255,80,80,0.4)' },
   calCellPartial: { backgroundColor: 'rgba(255,200,74,0.1)', borderColor: 'rgba(255,200,74,0.35)' },
   calCellBest: { backgroundColor: THEME.greenDim, borderColor: THEME.green + '55' },
