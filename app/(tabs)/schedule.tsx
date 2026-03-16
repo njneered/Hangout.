@@ -1,3 +1,5 @@
+import HangoutHeader from '@/components/HangoutHeader';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useRef, useState } from 'react';
 import { PanResponder } from 'react-native';
@@ -5,12 +7,11 @@ import { PanResponder } from 'react-native';
 import {
   Animated,
   Dimensions,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 type DayState = 'free' | 'unavailable' | 'partial';
@@ -92,6 +93,7 @@ function getWeekDates(weekOffset: number): Date[] {
 
 export default function ScheduleScreen() {
   const today = new Date();
+  const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('monthly');
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
@@ -212,7 +214,16 @@ export default function ScheduleScreen() {
 
   const bestNight = getBestNight();
 
+  const isPastDate = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const t = new Date(today);
+    t.setHours(0, 0, 0, 0);
+    return d < t;
+  };
+
   const handleDayTap = (key: string, date: Date) => {
+    if (isPastDate(date)) return; // silently block past dates
     if (selectedKey === key) {
       setDayMap(prev => { const { [key]: _, ...rest } = prev; return rest; });
       closePanel();
@@ -263,17 +274,20 @@ export default function ScheduleScreen() {
       const dateStyle: any[] = [styles.calDate];
       let subLabel = '';
 
-      if (isUnavail)       { cellStyle.push(styles.calCellUnavail); dateStyle.push(styles.calDateUnavail); subLabel = 'out'; }
-      else if (isPartial)  { cellStyle.push(styles.calCellPartial); dateStyle.push(styles.calDatePartial); subLabel = 'partial'; }
-      else if (isBest)     { cellStyle.push(styles.calCellBest);    dateStyle.push(styles.calDateBest);    subLabel = '✨ best'; }
-      else if (isToday)    { cellStyle.push(styles.calCellToday); }
-      if (isSelected)      { cellStyle.push(styles.calCellSelected); }
+      const isPast = isPastDate(new Date(year, month, d));
+
+      if (isPast)                { cellStyle.push(styles.calCellPast); dateStyle.push(styles.calDatePast); }
+      else if (isUnavail)        { cellStyle.push(styles.calCellUnavail); dateStyle.push(styles.calDateUnavail); subLabel = 'out'; }
+      else if (isPartial)        { cellStyle.push(styles.calCellPartial); dateStyle.push(styles.calDatePartial); subLabel = 'partial'; }
+      else if (isBest)           { cellStyle.push(styles.calCellBest);    dateStyle.push(styles.calDateBest);    subLabel = '✨ best'; }
+      else if (isToday)          { cellStyle.push(styles.calCellToday); }
+      if (isSelected && !isPast) { cellStyle.push(styles.calCellSelected); }
 
       cells.push(
         <TouchableOpacity
           key={key}
           style={cellStyle}
-          onPress={() => handleDayTap(key, new Date(year, month, d))}
+          onPress={() => !isPastDate(new Date(year, month, d)) && handleDayTap(key, new Date(year, month, d))}
           activeOpacity={0.7}
         >
           <Text style={dateStyle}>{d}</Text>
@@ -484,6 +498,7 @@ export default function ScheduleScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+      <HangoutHeader />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -501,16 +516,19 @@ export default function ScheduleScreen() {
 
         {bestNight && (
           <View style={styles.bestBanner}>
-            <View style={styles.bestBannerLeft}>
+            <View style={styles.bestBannerTop}>
               <Text style={styles.bestBannerEmoji}>✨</Text>
-              <View>
-                <Text style={styles.bestBannerLabel}>Best night for everyone</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bestBannerLabel}>Best night</Text>
                 <Text style={styles.bestBannerDate}>
                   {bestNight.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.bestBannerBtn}>
+            <TouchableOpacity
+              style={styles.bestBannerBtn}
+              onPress={() => router.push('/event' as any)}
+            >
               <Text style={styles.bestBannerBtnText}>Lock it in →</Text>
             </TouchableOpacity>
           </View>
@@ -570,7 +588,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
 
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: 12,
     paddingHorizontal: GUTTER,
     paddingBottom: 16,
   },
@@ -585,17 +603,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(250,204,21,0.35)',
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     gap: 12,
   },
-  bestBannerLeft:    { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
-  bestBannerEmoji:   { fontSize: 24 },
-  bestBannerLabel:   { fontSize: 11, color: THEME.gold, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 1 },
-  bestBannerDate:    { fontSize: 15, color: THEME.text, fontWeight: '600', marginTop: 2, flexShrink: 1 },
-  bestBannerBtn:     { backgroundColor: THEME.gold, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  bestBannerBtnText: { fontSize: 13, fontWeight: '700', color: '#1a1333' },
+  bestBannerTop:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bestBannerEmoji:   { fontSize: 22 },
+  bestBannerLabel:   { fontSize: 11, color: THEME.gold, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+  bestBannerDate:    { fontSize: 15, color: THEME.text, fontWeight: '600', marginTop: 2 },
+  bestBannerBtn:     { backgroundColor: THEME.gold, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  bestBannerBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1333' },
 
   toggleRow: {
     flexDirection: 'row',
@@ -642,6 +658,8 @@ const styles = StyleSheet.create({
   calCellBest:     { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)', borderWidth: 1 },
   calCellToday:    { borderColor: 'rgba(250,204,21,0.5)', borderWidth: 1.5 },
   calCellSelected: { borderColor: THEME.purpleLight, borderWidth: 2 },
+  calCellPast:     { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.04)' },
+  calDatePast:     { color: 'rgba(255,255,255,0.18)' },
 
   calDate:        { fontSize: 14, fontWeight: '500', color: THEME.text },
   calDateUnavail: { color: 'rgba(255,255,255,0.3)' },

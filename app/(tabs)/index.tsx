@@ -1,3 +1,4 @@
+import HangoutHeader from '@/components/HangoutHeader';
 import { CURRENT_USER, FRIENDS, NUDGE } from '@/constants/mockData';
 import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -21,13 +22,13 @@ const THEME = {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.bg },
-  content: { padding: 24, paddingTop: 60 },
+  scroll:    { flex: 1 },
+  content:   { padding: 24, paddingTop: 16 },
 
-  // header
-  header: { marginBottom: 28 },
-  appName: { fontSize: 26, fontWeight: '800', color: THEME.gold, marginBottom: 6 },
-  greeting: { fontSize: 20, fontWeight: '700', color: THEME.text, marginBottom: 2 },
-  date: { fontSize: 13, color: THEME.textMuted },
+  // greeting
+  header:    { marginBottom: 28 },
+  greeting:  { fontSize: 20, fontWeight: '700', color: THEME.text, marginBottom: 2 },
+  date:      { fontSize: 13, color: THEME.textMuted },
 
   // nudge card
   nudgeCard: {
@@ -38,9 +39,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(250,204,21,0.35)',
   },
-  nudgeLabel: { fontSize: 13, color: THEME.textSub, marginBottom: 4 },
-  nudgeDays: { fontSize: 36, fontWeight: '800', color: THEME.gold },
-  nudgeActivity: { fontSize: 16, color: THEME.text, marginBottom: 20 },
+  nudgeLabel:   { fontSize: 13, color: THEME.textSub, marginBottom: 4 },
+  nudgeDays:    { fontSize: 36, fontWeight: '800', color: THEME.gold },
+  nudgeActivity:{ fontSize: 16, color: THEME.text, marginBottom: 20 },
   planBtn: {
     backgroundColor: THEME.gold,
     borderRadius: 12,
@@ -61,14 +62,14 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 16, marginBottom: 10,
     borderWidth: 1, borderColor: THEME.cardBorder,
   },
-  friendInfo: { flex: 1 },
-  friendName: { fontSize: 14, fontWeight: '600', color: THEME.text },
-  friendActivity: { fontSize: 12, color: THEME.textMuted, marginTop: 2 },
-  badge: { borderRadius: 10, padding: 8, alignItems: 'center', minWidth: 52 },
-  badgeSoon: { backgroundColor: 'rgba(250,204,21,0.12)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.25)' },
+  friendInfo:   { flex: 1 },
+  friendName:   { fontSize: 14, fontWeight: '600', color: THEME.text },
+  friendActivity:{ fontSize: 12, color: THEME.textMuted, marginTop: 2 },
+  badge:        { borderRadius: 10, padding: 8, alignItems: 'center', minWidth: 52 },
+  badgeSoon:    { backgroundColor: 'rgba(250,204,21,0.12)', borderWidth: 1, borderColor: 'rgba(250,204,21,0.25)' },
   badgeOverdue: { backgroundColor: THEME.redDim, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' },
-  badgeNum: { fontSize: 16, fontWeight: '800', color: THEME.text },
-  badgeLabel: { fontSize: 10, color: THEME.textMuted, marginTop: 1 },
+  badgeNum:     { fontSize: 16, fontWeight: '800', color: THEME.text },
+  badgeLabel:   { fontSize: 10, color: THEME.textMuted, marginTop: 1 },
 });
 
 function getGreeting() {
@@ -85,42 +86,42 @@ export default function HomeScreen() {
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
+      <HangoutHeader />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.appName}>Hangout.</Text>
+        {/* GREETING */}
+        <View style={styles.header}>
           <Text style={styles.greeting}>Good {getGreeting()}, {CURRENT_USER.name}!</Text>
           <Text style={styles.date}>{today}</Text>
         </View>
-      </View>
 
-      {/* NUDGE CARD */}
-      <View style={styles.nudgeCard}>
-        <Text style={styles.nudgeLabel}>It's been a while...</Text>
-        <Text style={styles.nudgeDays}>{NUDGE.lastHangout} days since</Text>
-        <Text style={styles.nudgeActivity}>hanging with {NUDGE.name}</Text>
-        <TouchableOpacity style={styles.planBtn} onPress={() => router.push('/schedule' as any)}>
-          <Text style={styles.planBtnText}>Plan something</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* RECENT HANGOUTS LIST */}
-      <Text style={styles.sectionLabel}>RECENT HANGOUTS</Text>
-      {FRIENDS.map((friend: typeof FRIENDS[0]) => (
-        <View key={friend.id} style={styles.friendRow}>
-          <View style={styles.friendInfo}>
-            <Text style={styles.friendName}>{friend.name}</Text>
-            <Text style={styles.friendActivity}>{friend.activity}</Text>
-          </View>
-          <View style={[styles.badge, friend.overdue ? styles.badgeOverdue : styles.badgeSoon]}>
-            <Text style={styles.badgeNum}>{friend.lastHangout}</Text>
-            <Text style={styles.badgeLabel}>{friend.overdue ? 'overdue' : 'days ago'}</Text>
-          </View>
+        {/* NUDGE CARD */}
+        <View style={styles.nudgeCard}>
+          <Text style={styles.nudgeLabel}>It's been a while...</Text>
+          <Text style={styles.nudgeDays}>{NUDGE.lastHangout} days since</Text>
+          <Text style={styles.nudgeActivity}>hanging with {NUDGE.name}</Text>
+          <TouchableOpacity style={styles.planBtn} onPress={() => router.push('/schedule' as any)}>
+            <Text style={styles.planBtnText}>Plan something</Text>
+          </TouchableOpacity>
         </View>
-      ))}
 
-    </ScrollView>
+        {/* RECENT HANGOUTS LIST */}
+        <Text style={styles.sectionLabel}>RECENT HANGOUTS</Text>
+        {FRIENDS.map((friend: typeof FRIENDS[0]) => (
+          <View key={friend.id} style={styles.friendRow}>
+            <View style={styles.friendInfo}>
+              <Text style={styles.friendName}>{friend.name}</Text>
+              <Text style={styles.friendActivity}>{friend.activity}</Text>
+            </View>
+            <View style={[styles.badge, friend.overdue ? styles.badgeOverdue : styles.badgeSoon]}>
+              <Text style={styles.badgeNum}>{friend.lastHangout}</Text>
+              <Text style={styles.badgeLabel}>{friend.overdue ? 'overdue' : 'days ago'}</Text>
+            </View>
+          </View>
+        ))}
+
+      </ScrollView>
+    </View>
   );
 }
