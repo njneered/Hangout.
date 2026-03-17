@@ -118,7 +118,8 @@ constants/
 - [x] Add/remove items on food and misc lists
 - [x] Stub settings screen
 - [x] Tab bar navigation (Home, Schedule, Event)
-- [x] `app.json` architectural config locked (`newArchEnabled: false`)
+- [x] `app.json` architectural config locked (`newArchEnabled: false`)\
+- [x] Finalized logo! YAY
 
 ---
 
@@ -161,8 +162,7 @@ Let users find friends by syncing their contacts. Matches on phone number or ema
 **Customizable Event Emoji / Logo**
 Each event should have a customizable emoji or icon that appears next to the event title and on the event card/tab. Users can tap it to pick from an emoji picker.
 
-**Hangout Logo in Header**
-Replace the "⬛ Hangout." text logo in `HangoutHeader.tsx` with the actual Hangout logo asset once finalized (NJ is working on this rn).
+
 
 ---
 
