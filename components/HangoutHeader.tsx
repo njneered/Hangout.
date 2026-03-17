@@ -1,11 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const THEME = {
   bg: '#0f0a1f',
-  gold: '#facc15',
   purpleDim: 'rgba(139,92,246,0.15)',
-  purpleLight: '#c4b5fd',
   cardBorder: 'rgba(139,92,246,0.2)',
 };
 
@@ -16,7 +14,11 @@ export default function HangoutHeader() {
     <View style={styles.header}>
       {/* Logo — taps back to home */}
       <TouchableOpacity onPress={() => router.push('/' as any)} activeOpacity={0.7}>
-        <Text style={styles.logo}>⬛ Hangout.</Text>
+        <Image
+          source={require('@/assets/images/hangout-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </TouchableOpacity>
 
       {/* Gear → settings */}
@@ -39,15 +41,13 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 56 : 36,
     paddingHorizontal: 20,
     paddingBottom: 12,
-    backgroundColor: '#0f0a1f',
+    backgroundColor: THEME.bg,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(139,92,246,0.12)',
   },
   logo: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: THEME.gold,
-    letterSpacing: -0.3,
+    width: 120,
+    height: 32,
   },
   gearBtn: {
     backgroundColor: THEME.purpleDim,
