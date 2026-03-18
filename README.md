@@ -51,6 +51,7 @@ Hangout solves the coordination problem that kills most hangout plans. Instead o
 ## Project Structure
 
 ```
+# Screens users navigate to
 app/
 ├── (tabs)/
 │   ├── _layout.tsx        # Tab bar config (Home, Schedule, Event)
@@ -61,17 +62,21 @@ app/
 ├── modal.tsx              # Modal stub
 └── settings.tsx           # Settings screen
 
+# Reusable UI
 components/
 └── HangoutHeader.tsx      # Shared header (logo + gear/settings icon)
+
 
 constants/
 ├── mockData.ts            # Mock friends, nudge, current user data
 └── theme.ts               # Shared theme tokens (if extracted)
 
+# API/Client setup
 lib/
 ├── supabase.ts            # Supabase API Connect
 └── googleMaps.ts          # GoogleMaps API Connect
 
+# Database or network logic
 services/
 └── eventService.ts        # Get events from current user via userId
 ```
@@ -127,6 +132,7 @@ services/
 - [x] Tab bar navigation (Home, Schedule, Event)
 - [x] `app.json` architectural config locked (`newArchEnabled: false`)\
 - [x] Finalized logo! YAY
+- [x] Created Supabase Project & Tables (Users, Friends, Groups & Members, Events - Items(Food & Misc) & Members)
 
 ---
 
