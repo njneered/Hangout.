@@ -67,6 +67,13 @@ components/
 constants/
 ├── mockData.ts            # Mock friends, nudge, current user data
 └── theme.ts               # Shared theme tokens (if extracted)
+
+lib/
+├── supabase.ts            # Supabase API Connect
+└── googleMaps.ts          # GoogleMaps API Connect
+
+services/
+└── eventService.ts        # Get events from current user via userId
 ```
 
 ---
