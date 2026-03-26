@@ -152,6 +152,8 @@ Users need to be able to create a friend group, invite members, and have that gr
 **Profile / Username**
 Implement user profiles with a username, display name, and avatar. This feeds into who's coming on event pages, the nudge system, and group membership.
 
+    - User Sign-Up & Log-In & Log-Out function properly. 
+
 **Notifications & Edit Alerts**
 Push notifications for: (1) nudge reminders when it's been too long since a hangout, (2) real-time alerts whenever someone edits the event details page (changed location, claimed a food item, updated parking notes, etc.). Supabase real-time subscriptions are the right approach here.
 
