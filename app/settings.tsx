@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
-import { Redirect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -45,7 +45,7 @@ export default function SettingsScreen() {
   const { session, loading } = useAuth();
   if (loading) return null;
   if (!session) {
-    return <Redirect href="/(auth)/login" />;
+    //return <Redirect href="/(auth)/login" />;
   }
 
   async function handleLogout() {
