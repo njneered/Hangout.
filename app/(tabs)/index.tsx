@@ -1,6 +1,9 @@
 import HangoutHeader from '@/components/HangoutHeader';
-import { CURRENT_USER, FRIENDS, NUDGE } from '@/constants/mockData';
+import { FRIENDS, NUDGE } from '@/constants/mockData';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const THEME = {
@@ -81,9 +84,37 @@ function getGreeting() {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const [displayName, setDisplayName] = useState<string>('');
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
+
+    useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+
+      if (!error && data && active) {
+        setDisplayName(data.username ?? '');
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const greetingName = displayName || user?.email || 'there';
 
   return (
     <View style={styles.container}>
@@ -92,7 +123,7 @@ export default function HomeScreen() {
 
         {/* GREETING */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>Good {getGreeting()}, {CURRENT_USER.name}!</Text>
+          <Text style={styles.greeting}>Good {getGreeting()}, {greetingName}!</Text>
           <Text style={styles.date}>{today}</Text>
         </View>
 

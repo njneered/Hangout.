@@ -1,6 +1,9 @@
-import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
+import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const THEME = {
   bg: '#0f0a1f',
@@ -14,6 +17,7 @@ const THEME = {
   textMuted: '#a78bfa',
   red: '#ef4444',
 };
+
 
 const SETTINGS_SECTIONS = [
   {
@@ -34,8 +38,26 @@ const SETTINGS_SECTIONS = [
   },
 ];
 
+
+
 export default function SettingsScreen() {
   const router = useRouter();
+  const { session, loading } = useAuth();
+  if (loading) return null;
+  if (!session) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  async function handleLogout() {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    Alert.alert('Logout failed', error.message);
+    return;
+  }
+
+  router.replace('/(auth)/login');
+}
 
   return (
     <View style={styles.container}>
@@ -71,10 +93,15 @@ export default function SettingsScreen() {
                   <Text style={styles.settingsRowText}>{item}</Text>
                   <Text style={styles.settingsRowArrow}>›</Text>
                 </TouchableOpacity>
+                
               ))}
             </View>
           </View>
         ))}
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Log out</Text>
+        </TouchableOpacity>
 
         <Text style={styles.version}>Hangout v0.1.0 · Made by Stack Underflow: njneered · ok-Mook · ReyZix</Text>
       </ScrollView>
@@ -133,5 +160,20 @@ const styles = StyleSheet.create({
     color: THEME.textMuted,
     marginTop: 32,
     marginBottom: 20,
+  },
+  logoutBtn: {
+    marginHorizontal: 20,
+    marginTop: 28,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.28)',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: THEME.red,
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

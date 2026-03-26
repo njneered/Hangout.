@@ -1,21 +1,20 @@
-import { Tabs } from 'expo-router';
+import { useAuth } from '@/providers/AuthProvider';
+import { Redirect, Tabs } from 'expo-router';
 
-export default function TabLayout() {
+export default function TabsLayout() {
+  const { session, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (!session) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarStyle: {
-          backgroundColor: '#0f0a1f',
-          borderTopColor: 'rgba(139,92,246,0.2)',
-        },
-        tabBarActiveTintColor: '#facc15',
-        tabBarInactiveTintColor: '#a78bfa',
-        headerShown: false,
-      }}
-    >
-      <Tabs.Screen name="index"    options={{ title: 'Home' }} />
+    <Tabs screenOptions={{ headerShown: false }}>
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="schedule" options={{ title: 'Schedule' }} />
-      <Tabs.Screen name="event"    options={{ title: 'Event' }} />
+      <Tabs.Screen name="event" options={{ title: 'Event' }} />
     </Tabs>
   );
 }
