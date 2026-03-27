@@ -53,6 +53,10 @@ Hangout solves the coordination problem that kills most hangout plans. Instead o
 ```
 # Screens users navigate to
 app/
+├── (auth)/
+│   ├── _layout.tsx        # Auth page config
+│   ├── login.tsx          # Login page
+│   ├── signup.tsx         # Signup page
 ├── (tabs)/
 │   ├── _layout.tsx        # Tab bar config (Home, Schedule, Event)
 │   ├── index.tsx          # Home screen
@@ -79,6 +83,11 @@ lib/
 # Database or network logic
 services/
 └── eventService.ts        # Get events from current user via userId
+
+# Auth
+providers/
+└── AuthProvider.tsx       # Manages auth state via Supabase (Tracks current login session)
+
 ```
 
 ---
@@ -133,6 +142,7 @@ services/
 - [x] `app.json` architectural config locked (`newArchEnabled: false`)\
 - [x] Finalized logo! YAY
 - [x] Created Supabase Project & Tables (Users, Friends, Groups & Members, Events - Items(Food & Misc) & Members)
+- [x] User Sign-up, log-in, log-out done. 
 
 ---
 
@@ -153,6 +163,8 @@ Users need to be able to create a friend group, invite members, and have that gr
 Implement user profiles with a username, display name, and avatar. This feeds into who's coming on event pages, the nudge system, and group membership.
 
     - User Sign-Up & Log-In & Log-Out function properly. 
+    TODO : Profile page.
+    TODO : Properly align user tables with profile expectations. 
 
 **Notifications & Edit Alerts**
 Push notifications for: (1) nudge reminders when it's been too long since a hangout, (2) real-time alerts whenever someone edits the event details page (changed location, claimed a food item, updated parking notes, etc.). Supabase real-time subscriptions are the right approach here.
