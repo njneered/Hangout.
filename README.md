@@ -61,7 +61,7 @@ app/
 │   ├── _layout.tsx        # Tab bar config (Home, Schedule, Event)
 │   ├── index.tsx          # Home screen
 │   ├── schedule.tsx       # Schedule screen (monthly + weekly views)
-│   └── event.tsx          # Event details screen
+│   └── hangouts.tsx       # Event details screen + creation + details
 ├── _layout.tsx            # Root stack layout (declares settings route)
 ├── modal.tsx              # Modal stub
 └── settings.tsx           # Settings screen
@@ -143,6 +143,14 @@ providers/
 - [x] Finalized logo! YAY
 - [x] Created Supabase Project & Tables (Users, Friends, Groups & Members, Events - Items(Food & Misc) & Members)
 - [x] User Sign-up, log-in, log-out done. 
+- [x] Profile page redesign (stats, friends modal, edit mode)
+- [x] Username-based greeting system instead of email
+- [x] Avatar-based hangout previews
+- [x] Hangouts page replaced Event page
+- [x] Event card list UI
+- [x] Suggestions tab system
+- [x] Confirmed event state UI
+
 
 ---
 
@@ -153,18 +161,16 @@ providers/
 **Maps & Location Integration**
 Wire the location and parking fields to a maps API (Google Places or Apple Maps). When a user types in the location field, suggestions should pop up. Once selected, the address auto-fills and a map preview renders below the location card inside the event details page.
 
-**Event Tabs System**
-The Event tab currently shows a single hardcoded event. This needs to support multiple events — each with its own tab or card. Tapping an event card opens that event's full details page. This requires a proper data model and navigation structure (likely a dynamic route like `app/(tabs)/event/[id].tsx`).
+**Dynamic Hangout Routing**
+Need to move from static hangouts to dynamic routes, persist events in database, and load per-event details dynamically.
 
 **Create a Group**
 Users need to be able to create a friend group, invite members, and have that group's availability aggregated on the schedule screen. The current `FRIENDS` mock array needs to become real Supabase data tied to the authenticated user.
 
-**Profile / Username**
-Implement user profiles with a username, display name, and avatar. This feeds into who's coming on event pages, the nudge system, and group membership.
+**Add friends system (backend wiring)**
 
-    - User Sign-Up & Log-In & Log-Out function properly. 
-    TODO : Profile page.
-    TODO : Properly align user tables with profile expectations. 
+**Event creation and persistence (backend wiring)**
+
 
 **Notifications & Edit Alerts**
 Push notifications for: (1) nudge reminders when it's been too long since a hangout, (2) real-time alerts whenever someone edits the event details page (changed location, claimed a food item, updated parking notes, etc.). Supabase real-time subscriptions are the right approach here.
