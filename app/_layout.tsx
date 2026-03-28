@@ -7,14 +7,7 @@ function RootNavigator() {
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: '#0f0a1f',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <View style={{ flex: 1, backgroundColor: '#0f0a1f', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#facc15" />
       </View>
     );
@@ -26,6 +19,7 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="nudgeFrequency" />
     </Stack>
   );
 }

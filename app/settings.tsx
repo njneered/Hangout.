@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const THEME = {
@@ -18,52 +17,71 @@ const THEME = {
   red: '#ef4444',
 };
 
-
 const SETTINGS_SECTIONS = [
   {
     label: 'ACCOUNT',
-    items: ['Edit Profile', 'Change Username', 'Notifications', 'Privacy'],
+    items: [
+      { label: 'Edit Profile' },
+      { label: 'Change Username' },
+      { label: 'Notifications' },
+      { label: 'Privacy' },
+    ],
   },
   {
     label: 'APP',
-    items: ['Appearance', 'Default View', 'Nudge Frequency', 'Language'],
+    items: [
+      { label: 'Appearance' },
+      { label: 'Default View' },
+      { label: 'Nudge Frequency', route: '/nudgeFrequency' },
+      { label: 'Language' },
+    ],
   },
   {
     label: 'INTEGRATIONS',
-    items: ['Connect Spotify', 'Connect Apple Music', 'Calendar Sync', 'Contacts Access'],
+    items: [
+      { label: 'Connect Spotify' },
+      { label: 'Connect Apple Music' },
+      { label: 'Calendar Sync' },
+      { label: 'Contacts Access' },
+    ],
   },
   {
     label: 'SUPPORT',
-    items: ['Help & FAQ', 'Send Feedback', 'Report a Bug', 'About Hangout'],
+    items: [
+      { label: 'Help & FAQ' },
+      { label: 'Send Feedback' },
+      { label: 'Report a Bug' },
+      { label: 'About Hangout' },
+    ],
   },
 ];
-
-
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { session, loading } = useAuth();
+
   if (loading) return null;
-  if (!session) {
-    //return <Redirect href="/(auth)/login" />;
-  }
 
   async function handleLogout() {
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    Alert.alert('Logout failed', error.message);
-    return;
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert('Logout failed', error.message);
+      return;
+    }
+    // Use push instead of replace to avoid the type error with auth routes
+    router.push('/nudgeFrequency' as any);
+    // Actually navigate to login — cast to any to bypass strict route typing
+    router.replace('/(auth)/login' as any);
   }
 
-  router.replace('/(auth)/login');
-}
+  function handleRowPress(route?: string) {
+    if (route) router.push(route as any);
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>← Back</Text>
@@ -83,17 +101,27 @@ export default function SettingsScreen() {
             <View style={styles.sectionCard}>
               {section.items.map((item, i) => (
                 <TouchableOpacity
-                  key={item}
+                  key={item.label}
                   style={[
                     styles.settingsRow,
                     i < section.items.length - 1 && styles.settingsRowBorder,
                   ]}
-                  activeOpacity={0.6}
+                  activeOpacity={item.route ? 0.6 : 0.9}
+                  onPress={() => handleRowPress(item.route)}
                 >
-                  <Text style={styles.settingsRowText}>{item}</Text>
-                  <Text style={styles.settingsRowArrow}>›</Text>
+                  <Text style={[
+                    styles.settingsRowText,
+                    !item.route && styles.settingsRowTextMuted,
+                  ]}>
+                    {item.label}
+                  </Text>
+                  <Text style={[
+                    styles.settingsRowArrow,
+                    !item.route && styles.settingsRowArrowMuted,
+                  ]}>
+                    ›
+                  </Text>
                 </TouchableOpacity>
-                
               ))}
             </View>
           </View>
@@ -103,7 +131,9 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>Hangout v0.1.0 · Made by Stack Underflow: njneered · ok-Mook · ReyZix</Text>
+        <Text style={styles.version}>
+          Hangout v0.1.0 · Made by Stack Underflow: njneered · ok-Mook · ReyZix
+        </Text>
       </ScrollView>
     </View>
   );
@@ -151,16 +181,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(139,92,246,0.1)',
   },
-  settingsRowText:  { fontSize: 15, color: THEME.text, fontWeight: '500' },
-  settingsRowArrow: { fontSize: 20, color: THEME.textMuted },
+  settingsRowText:      { fontSize: 15, color: THEME.text, fontWeight: '500' },
+  settingsRowTextMuted: { color: THEME.textMuted },
+  settingsRowArrow:     { fontSize: 20, color: THEME.textMuted },
+  settingsRowArrowMuted:{ opacity: 0.35 },
 
-  version: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: THEME.textMuted,
-    marginTop: 32,
-    marginBottom: 20,
-  },
   logoutBtn: {
     marginHorizontal: 20,
     marginTop: 28,
@@ -175,5 +200,13 @@ const styles = StyleSheet.create({
     color: THEME.red,
     fontWeight: '700',
     fontSize: 15,
+  },
+
+  version: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: THEME.textMuted,
+    marginTop: 32,
+    marginBottom: 20,
   },
 });
