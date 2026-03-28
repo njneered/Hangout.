@@ -1,21 +1,8 @@
-/**
- * settings.tsx
- * ─────────────────────────────────────────────────────────────
- * Updated from stub → "Nudge Frequency" now navigates to the
- * real nudgeFrequencyScreen. All other rows remain stubs
- * (ready to wire up later).
- *
- * SETUP REQUIRED:
- *   1. Add nudgeFrequency to your Expo Router file structure:
- *      app/nudgeFrequency.tsx  ← place nudgeFrequencyScreen.tsx here
- *   2. Declare the route in your root app/_layout.tsx stack:
- *      <Stack.Screen name="nudgeFrequency" options={{ headerShown: false }} />
- * ─────────────────────────────────────────────────────────────
- */
-
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const THEME = {
   bg: '#0f0a1f',
@@ -30,8 +17,6 @@ const THEME = {
   red: '#ef4444',
 };
 
-// Items with a real destination get a `route` key.
-// Items still stubbed have no `route` — tapping them is a no-op for now.
 const SETTINGS_SECTIONS = [
   {
     label: 'ACCOUNT',
@@ -47,7 +32,7 @@ const SETTINGS_SECTIONS = [
     items: [
       { label: 'Appearance' },
       { label: 'Default View' },
-      { label: 'Nudge Frequency', route: '/nudgeFrequency' }, // ✅ WIRED
+      { label: 'Nudge Frequency', route: '/nudgeFrequency' },
       { label: 'Language' },
     ],
   },
@@ -73,17 +58,30 @@ const SETTINGS_SECTIONS = [
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { session, loading } = useAuth();
+
+  if (loading) return null;
+
+  async function handleLogout() {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert('Logout failed', error.message);
+      return;
+    }
+    // Use push instead of replace to avoid the type error with auth routes
+    router.push('/nudgeFrequency' as any);
+    // Actually navigate to login — cast to any to bypass strict route typing
+    router.replace('/(auth)/login' as any);
+  }
 
   function handleRowPress(route?: string) {
     if (route) router.push(route as any);
-    // Stubbed rows do nothing — add their routes above when ready
   }
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>← Back</Text>
@@ -111,20 +109,16 @@ export default function SettingsScreen() {
                   activeOpacity={item.route ? 0.6 : 0.9}
                   onPress={() => handleRowPress(item.route)}
                 >
-                  <Text
-                    style={[
-                      styles.settingsRowText,
-                      !item.route && styles.settingsRowTextMuted,
-                    ]}
-                  >
+                  <Text style={[
+                    styles.settingsRowText,
+                    !item.route && styles.settingsRowTextMuted,
+                  ]}>
                     {item.label}
                   </Text>
-                  <Text
-                    style={[
-                      styles.settingsRowArrow,
-                      !item.route && styles.settingsRowArrowMuted,
-                    ]}
-                  >
+                  <Text style={[
+                    styles.settingsRowArrow,
+                    !item.route && styles.settingsRowArrowMuted,
+                  ]}>
                     ›
                   </Text>
                 </TouchableOpacity>
@@ -132,6 +126,10 @@ export default function SettingsScreen() {
             </View>
           </View>
         ))}
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Log out</Text>
+        </TouchableOpacity>
 
         <Text style={styles.version}>
           Hangout v0.1.0 · Made by Stack Underflow: njneered · ok-Mook · ReyZix
@@ -179,24 +177,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-
-    settingsRowArrowMuted:{ opacity: 0.35 }, 
-    version: {
-      textAlign: 'center',
-      fontSize: 12,
-      color: THEME.textMuted,
-      marginTop: 32,
-      marginBottom: 20,
-    },
-  
-
   settingsRowBorder: {
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(139,92,246,0.1)',
   },
   settingsRowText:      { fontSize: 15, color: THEME.text, fontWeight: '500' },
-  settingsRowTextMuted: { color: THEME.textMuted },                  
+  settingsRowTextMuted: { color: THEME.textMuted },
   settingsRowArrow:     { fontSize: 20, color: THEME.textMuted },
-                            
-});
+  settingsRowArrowMuted:{ opacity: 0.35 },
 
+  logoutBtn: {
+    marginHorizontal: 20,
+    marginTop: 28,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.28)',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: THEME.red,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+
+  version: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: THEME.textMuted,
+    marginTop: 32,
+    marginBottom: 20,
+  },
+});
