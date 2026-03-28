@@ -1,7 +1,12 @@
 import HangoutHeader from '@/components/HangoutHeader';
+import { useAuth } from '@/providers/AuthProvider';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,7 +14,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 const THEME = {
@@ -33,16 +38,16 @@ const THEME = {
 };
 
 const GUTTER = 20;
-
 const OUTFIT_VIBES = ['Whatever', 'Comfy / PJs', 'Formal', 'Cosplay', 'Themed', 'Matching'];
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface FoodItem { id: string; name: string; claimedBy: string | null; }
-interface MiscItem { id: string; name: string; claimedBy: string | null; }
+// ── Types ────────────────────────────────────────────────────
+interface FoodItem  { id: string; name: string; claimedBy: string | null; }
+interface MiscItem  { id: string; name: string; claimedBy: string | null; }
 interface Suggestion { id: string; from: string; text: string; status: 'pending' | 'accepted' | 'declined'; }
 
 interface HangoutEvent {
   id: string;
+  groupId: string;   // ← links to groups.id in Supabase
   emoji: string;
   name: string;
   date: string;
@@ -60,80 +65,15 @@ interface HangoutEvent {
   suggestions: Suggestion[];
 }
 
-// ── Mock events (TODO backend: replace with Supabase events query) ─────────────
-const MOCK_EVENTS: HangoutEvent[] = [
-  {
-    id: '1',
-    emoji: '🎮',
-    name: 'Game Night',
-    date: 'Friday, March 13',
-    time: '7:30 PM',
-    confirmed: false,
-    attendees: [
-      { id: '1', name: 'You',      color: THEME.gold },
-      { id: '2', name: 'Sandy',    color: '#ef4444' },
-      { id: '3', name: 'Brittany', color: THEME.purple },
-      { id: '4', name: 'Josh',     color: THEME.green },
-    ],
-    outfit: 'Cosplay',
-    playlist: "Josh's Game Night Playlist",
-    locationName: 'Reitz Game Room',
-    locationAddr: '655 Reitz Union Drive, Gainesville, FL 32611',
-    parkingName: 'Parking Garage 10',
-    parkingNotes: 'Free after 5 PM on weekdays. Enter from Museum Rd.',
-    food: [
-      { id: '1', name: 'Pizza 🍕',          claimedBy: 'JOSH' },
-      { id: '2', name: 'Drinks 🥤',         claimedBy: 'SANDY' },
-      { id: '3', name: 'Chips & Dip 🥔',    claimedBy: 'BRITTNEY' },
-      { id: '4', name: 'Popcorn 🍿',        claimedBy: null },
-      { id: '5', name: 'Publix Chicken 🍗', claimedBy: 'YOU' },
-    ],
-    misc: [
-      { id: '1', name: 'Paper Plates 🍽️', claimedBy: 'YOU' },
-      { id: '2', name: 'Napkins',          claimedBy: null },
-      { id: '3', name: 'Cups 🥤',          claimedBy: 'SANDY' },
-    ],
-    suggestions: [
-      { id: 's1', from: 'Josh', text: 'We should bring a projector for the big games 🎯', status: 'pending' },
-      { id: 's2', from: 'Sandy', text: 'Can we also get dessert? Maybe cookies? 🍪', status: 'pending' },
-    ],
-  },
-  {
-    id: '2',
-    emoji: '🍕',
-    name: 'Pizza Friday',
-    date: 'Friday, April 4',
-    time: '6:00 PM',
-    confirmed: false,
-    attendees: [
-      { id: '1', name: 'You',     color: THEME.gold },
-      { id: '2', name: 'Josh',    color: THEME.green },
-      { id: '3', name: 'Lorenzo', color: THEME.purple },
-    ],
-    outfit: 'Whatever',
-    playlist: '',
-    locationName: "Leonardo's Pizza",
-    locationAddr: '1245 W University Ave, Gainesville, FL',
-    parkingName: '',
-    parkingNotes: 'Street parking on University',
-    food: [
-      { id: '1', name: 'Pepperoni Pizza 🍕', claimedBy: null },
-      { id: '2', name: 'Garlic Knots 🧄',    claimedBy: 'YOU' },
-    ],
-    misc: [],
-    suggestions: [
-      { id: 's1', from: 'Lorenzo', text: 'Should we try the new calzone? 🥙', status: 'pending' },
-    ],
-  },
-];
-
-// ── Hangouts List (landing view) ──────────────────────────────────────────────
+// ── Hangouts List ─────────────────────────────────────────────
 function HangoutsList({
   events,
+  loading,
   onSelect,
   onCreateNew,
 }: {
   events: HangoutEvent[];
+  loading: boolean;
   onSelect: (e: HangoutEvent) => void;
   onCreateNew: () => void;
 }) {
@@ -146,7 +86,12 @@ function HangoutsList({
         </TouchableOpacity>
       </View>
 
-      {events.length === 0 ? (
+      {loading ? (
+        <View style={hl.emptyState}>
+          <ActivityIndicator color={THEME.purpleLight} size="large" />
+          <Text style={{ color: THEME.textMuted, marginTop: 12 }}>Loading hangouts…</Text>
+        </View>
+      ) : events.length === 0 ? (
         <View style={hl.emptyState}>
           <Text style={hl.emptyEmoji}>🌙</Text>
           <Text style={hl.emptyTitle}>No hangouts yet</Text>
@@ -177,9 +122,6 @@ function HangoutsList({
                 ? <View style={hl.confirmedBadge}><Text style={hl.confirmedText}>Confirmed ✓</Text></View>
                 : <View style={hl.pendingBadge}><Text style={hl.pendingText}>Planning</Text></View>
               }
-              {ev.suggestions.some(sg => sg.status === 'pending') && (
-                <View style={hl.suggestionDot} />
-              )}
               <Text style={hl.chevron}>›</Text>
             </View>
           </TouchableOpacity>
@@ -194,10 +136,7 @@ const hl = StyleSheet.create({
   content:   { padding: GUTTER, paddingTop: 12 },
   topRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   heading:   { fontSize: 26, fontWeight: '800', color: THEME.text, letterSpacing: -0.5 },
-  createBtn: {
-    backgroundColor: THEME.gold, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 8,
-  },
+  createBtn: { backgroundColor: THEME.gold, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
   createBtnText: { color: '#1a1333', fontWeight: '800', fontSize: 14 },
 
   emptyState: { alignItems: 'center', paddingTop: 80 },
@@ -216,53 +155,121 @@ const hl = StyleSheet.create({
   cardName:  { fontSize: 17, fontWeight: '700', color: THEME.text, marginBottom: 3 },
   cardDate:  { fontSize: 12, color: THEME.textMuted, marginBottom: 6 },
   attendeeRow: { flexDirection: 'row', gap: 5, alignItems: 'center' },
-  pip: {
-    width: 22, height: 22, borderRadius: 11, borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pipText:       { fontSize: 10, fontWeight: '800' },
+  pip: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  pipText: { fontSize: 10, fontWeight: '800' },
   moreAttendees: { fontSize: 11, color: THEME.textMuted, fontWeight: '600' },
-
-  cardRight:      { alignItems: 'flex-end', gap: 6 },
+  cardRight: { alignItems: 'flex-end', gap: 6 },
   confirmedBadge: { backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)' },
   confirmedText:  { fontSize: 11, fontWeight: '700', color: THEME.green },
   pendingBadge:   { backgroundColor: THEME.purpleDim, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)' },
   pendingText:    { fontSize: 11, fontWeight: '700', color: THEME.purpleLight },
-  suggestionDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: THEME.gold, alignSelf: 'flex-end' },
   chevron:        { fontSize: 22, color: THEME.textMuted },
 });
 
-// ── Create Hangout form ────────────────────────────────────────────────────────
-function CreateHangoutForm({ onBack, onCreate }: { onBack: () => void; onCreate: (e: HangoutEvent) => void }) {
-  const [name, setName] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+// ── Create Hangout Form ───────────────────────────────────────
+function CreateHangoutForm({
+  userId,
+  onBack,
+  onCreate,
+}: {
+  userId: string;
+  onBack: () => void;
+  onCreate: (e: HangoutEvent) => void;
+}) {
+  const [name, setName]   = useState('');
+  const [date, setDate]   = useState('');
+  const [time, setTime]   = useState('');
   const [emoji, setEmoji] = useState('🎉');
+  const [saving, setSaving] = useState(false);
 
   const EMOJI_OPTIONS = ['🎉','🎮','🍕','🎬','🏖️','🎤','🍻','🏀'];
 
-  function handleCreate() {
-    if (!name.trim()) return;
-    // TODO (backend): insert new event into Supabase events table, get real id back
-    const newEvent: HangoutEvent = {
-      id: Date.now().toString(),
-      emoji,
-      name: name.trim(),
-      date: date.trim() || 'TBD',
-      time: time.trim() || 'TBD',
-      confirmed: false,
-      attendees: [{ id: '1', name: 'You', color: THEME.gold }],
-      outfit: 'Whatever',
-      playlist: '',
-      locationName: '',
-      locationAddr: '',
-      parkingName: '',
-      parkingNotes: '',
-      food: [],
-      misc: [],
-      suggestions: [],
-    };
-    onCreate(newEvent);
+  async function handleCreate() {
+    if (!name.trim() || !userId) return;
+    setSaving(true);
+
+    try {
+      // ── 1. Create the group (hangout = group in this app) ──
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name:        name.trim(),
+          description: `${emoji} ${name.trim()}`,
+          owner_id:    userId,
+        })
+        .select('id')
+        .single();
+
+      if (groupError) throw groupError;
+      const groupId = groupData.id;
+
+      // ── 2. Add creator to group_members ──
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: groupId,
+          user_id:  userId,
+        });
+
+      if (memberError) throw memberError;
+
+      // ── 3. Create the event linked to the group ──
+      const startTime = new Date().toISOString(); // TODO: parse date+time fields properly
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .insert({
+          title:       name.trim(),
+          creator_id:  userId,
+          group_id:    groupId,
+          start_time:  startTime,
+          description: `${emoji} ${name.trim()}`,
+          is_group_event: true,
+        })
+        .select('id')
+        .single();
+
+      if (eventError) throw eventError;
+      const eventId = eventData.id;
+
+      // ── 4. Add creator to event_members ──
+      const { error: eventMemberError } = await supabase
+        .from('event_members')
+        .insert({
+          event_id: eventId,
+          user_id:  userId,
+          role:     'creator',
+          rsvp_status: 'accepted',
+        });
+
+      if (eventMemberError) throw eventMemberError;
+
+      // ── 5. Build local event object and pass back up ──
+      const newEvent: HangoutEvent = {
+        id:          eventId,
+        groupId:     groupId,
+        emoji,
+        name:        name.trim(),
+        date:        date.trim() || 'TBD',
+        time:        time.trim() || 'TBD',
+        confirmed:   false,
+        attendees:   [{ id: userId, name: 'You', color: THEME.gold }],
+        outfit:      'Whatever',
+        playlist:    '',
+        locationName:'',
+        locationAddr:'',
+        parkingName: '',
+        parkingNotes:'',
+        food:        [],
+        misc:        [],
+        suggestions: [],
+      };
+
+      onCreate(newEvent);
+    } catch (err: any) {
+      Alert.alert('Error creating hangout', err.message ?? 'Unknown error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -273,7 +280,6 @@ function CreateHangoutForm({ onBack, onCreate }: { onBack: () => void; onCreate:
         </TouchableOpacity>
         <Text style={cf.heading}>Create a Hangout</Text>
 
-        {/* Emoji picker */}
         <Text style={cf.label}>PICK A VIBE</Text>
         <View style={cf.emojiRow}>
           {EMOJI_OPTIONS.map(e => (
@@ -315,11 +321,14 @@ function CreateHangoutForm({ onBack, onCreate }: { onBack: () => void; onCreate:
         />
 
         <TouchableOpacity
-          style={[cf.createBtn, !name.trim() && cf.createBtnDisabled]}
+          style={[cf.createBtn, (!name.trim() || saving) && cf.createBtnDisabled]}
           onPress={handleCreate}
-          disabled={!name.trim()}
+          disabled={!name.trim() || saving}
         >
-          <Text style={cf.createBtnText}>Create Hangout 🎉</Text>
+          {saving
+            ? <ActivityIndicator color="#1a1333" />
+            : <Text style={cf.createBtnText}>Create Hangout 🎉</Text>
+          }
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -328,33 +337,27 @@ function CreateHangoutForm({ onBack, onCreate }: { onBack: () => void; onCreate:
 }
 
 const cf = StyleSheet.create({
-  content:      { padding: GUTTER, paddingTop: 16 },
-  backBtn:      { marginBottom: 20 },
-  backBtnText:  { fontSize: 14, fontWeight: '600', color: THEME.purpleLight },
-  heading:      { fontSize: 26, fontWeight: '800', color: THEME.text, marginBottom: 28, letterSpacing: -0.5 },
-  label:        { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: THEME.purpleMuted, marginBottom: 8 },
+  content:     { padding: GUTTER, paddingTop: 16 },
+  backBtn:     { marginBottom: 20 },
+  backBtnText: { fontSize: 14, fontWeight: '600', color: THEME.purpleLight },
+  heading:     { fontSize: 26, fontWeight: '800', color: THEME.text, marginBottom: 28, letterSpacing: -0.5 },
+  label:       { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: THEME.purpleMuted, marginBottom: 8 },
 
-  emojiRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  emojiBtn: {
-    width: 48, height: 48, borderRadius: 14,
-    backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.cardBorder,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  emojiBtnActive: { borderColor: THEME.gold, backgroundColor: THEME.goldDim },
+  emojiRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
+  emojiBtn:      { width: 48, height: 48, borderRadius: 14, backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.cardBorder, alignItems: 'center', justifyContent: 'center' },
+  emojiBtnActive:{ borderColor: THEME.gold, backgroundColor: THEME.goldDim },
   emojiOption:   { fontSize: 24 },
 
   input: {
     backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder,
     color: THEME.text, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 20, fontSize: 15,
   },
-  createBtn: {
-    backgroundColor: THEME.gold, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8,
-  },
-  createBtnDisabled: { opacity: 0.4 },
-  createBtnText:     { color: '#1a1333', fontWeight: '800', fontSize: 16 },
+  createBtn:        { backgroundColor: THEME.gold, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  createBtnDisabled:{ opacity: 0.4 },
+  createBtnText:    { color: '#1a1333', fontWeight: '800', fontSize: 16 },
 });
 
-// ── Event Detail view ─────────────────────────────────────────────────────────
+// ── Event Detail ──────────────────────────────────────────────
 type DetailTab = 'details' | 'suggestions';
 
 function EventDetail({
@@ -372,27 +375,19 @@ function EventDetail({
   const [newFood, setNewFood]     = useState('');
   const [newMisc, setNewMisc]     = useState('');
 
-  // ── suggestion helpers
   function acceptSuggestion(id: string) {
-    setEv(prev => ({
-      ...prev,
-      suggestions: prev.suggestions.map(sg => sg.id === id ? { ...sg, status: 'accepted' } : sg),
-    }));
+    setEv(prev => ({ ...prev, suggestions: prev.suggestions.map(sg => sg.id === id ? { ...sg, status: 'accepted' } : sg) }));
   }
   function declineSuggestion(id: string) {
-    setEv(prev => ({
-      ...prev,
-      suggestions: prev.suggestions.map(sg => sg.id === id ? { ...sg, status: 'declined' } : sg),
-    }));
+    setEv(prev => ({ ...prev, suggestions: prev.suggestions.map(sg => sg.id === id ? { ...sg, status: 'declined' } : sg) }));
   }
 
   const pendingSuggestions = ev.suggestions.filter(sg => sg.status === 'pending').length;
 
-  // ── food/misc helpers
-  const claimFood = (id: string) => setEv(prev => ({ ...prev, food: prev.food.map(f => f.id === id ? { ...f, claimedBy: f.claimedBy === 'YOU' ? null : 'YOU' } : f) }));
-  const claimMisc = (id: string) => setEv(prev => ({ ...prev, misc: prev.misc.map(m => m.id === id ? { ...m, claimedBy: m.claimedBy === 'YOU' ? null : 'YOU' } : m) }));
-  const addFood   = () => { if (!newFood.trim()) return; setEv(prev => ({ ...prev, food: [...prev.food, { id: Date.now().toString(), name: newFood.trim(), claimedBy: null }] })); setNewFood(''); };
-  const addMisc   = () => { if (!newMisc.trim()) return; setEv(prev => ({ ...prev, misc: [...prev.misc, { id: Date.now().toString(), name: newMisc.trim(), claimedBy: null }] })); setNewMisc(''); };
+  const claimFood  = (id: string) => setEv(prev => ({ ...prev, food: prev.food.map(f => f.id === id ? { ...f, claimedBy: f.claimedBy === 'YOU' ? null : 'YOU' } : f) }));
+  const claimMisc  = (id: string) => setEv(prev => ({ ...prev, misc: prev.misc.map(m => m.id === id ? { ...m, claimedBy: m.claimedBy === 'YOU' ? null : 'YOU' } : m) }));
+  const addFood    = () => { if (!newFood.trim()) return; setEv(prev => ({ ...prev, food: [...prev.food, { id: Date.now().toString(), name: newFood.trim(), claimedBy: null }] })); setNewFood(''); };
+  const addMisc    = () => { if (!newMisc.trim()) return; setEv(prev => ({ ...prev, misc: [...prev.misc, { id: Date.now().toString(), name: newMisc.trim(), claimedBy: null }] })); setNewMisc(''); };
   const removeFood = (id: string) => setEv(prev => ({ ...prev, food: prev.food.filter(f => f.id !== id) }));
   const removeMisc = (id: string) => setEv(prev => ({ ...prev, misc: prev.misc.filter(m => m.id !== id) }));
 
@@ -403,51 +398,38 @@ function EventDetail({
     onConfirm(confirmed);
   }
 
-  const daysUntil: number = 2; // TODO (backend): compute from ev.date
+  const daysUntil: number = (() => {
+  const eventDate = new Date(ev.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  eventDate.setHours(0, 0, 0, 0);
+  const diff = eventDate.getTime() - today.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+})();
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-
-      {/* ── Tab bar (Details / Suggestions) ── */}
       <View style={ed.tabBar}>
         <TouchableOpacity style={ed.backBtn} onPress={onBack}>
           <Text style={ed.backBtnText}>← All</Text>
         </TouchableOpacity>
         <View style={ed.tabs}>
-          <TouchableOpacity
-            style={[ed.tab, activeTab === 'details' && ed.tabActive]}
-            onPress={() => setActiveTab('details')}
-          >
+          <TouchableOpacity style={[ed.tab, activeTab === 'details' && ed.tabActive]} onPress={() => setActiveTab('details')}>
             <Text style={[ed.tabText, activeTab === 'details' && ed.tabTextActive]}>Details</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[ed.tab, activeTab === 'suggestions' && ed.tabActive]}
-            onPress={() => setActiveTab('suggestions')}
-          >
+          <TouchableOpacity style={[ed.tab, activeTab === 'suggestions' && ed.tabActive]} onPress={() => setActiveTab('suggestions')}>
             <Text style={[ed.tabText, activeTab === 'suggestions' && ed.tabTextActive]}>
               Suggestions{pendingSuggestions > 0 ? ` (${pendingSuggestions})` : ''}
             </Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[ed.editBtn, editMode && ed.editBtnActive]}
-          onPress={() => setEditMode(e => !e)}
-        >
-          <Text style={[ed.editBtnText, editMode && ed.editBtnTextActive]}>
-            {editMode ? 'Done' : '✏️'}
-          </Text>
+        <TouchableOpacity style={[ed.editBtn, editMode && ed.editBtnActive]} onPress={() => setEditMode(e => !e)}>
+          <Text style={[ed.editBtnText, editMode && ed.editBtnTextActive]}>{editMode ? 'Done' : '✏️'}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Details tab ── */}
       {activeTab === 'details' && (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={ed.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Event header */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={ed.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={ed.header}>
             <Text style={ed.emoji}>{ev.emoji}</Text>
             <View style={{ flex: 1 }}>
@@ -463,7 +445,6 @@ function EventDetail({
             </View>
           </View>
 
-          {/* Countdown */}
           {!ev.confirmed && (
             <View style={ed.countdown}>
               <View>
@@ -475,7 +456,6 @@ function EventDetail({
             </View>
           )}
 
-          {/* Who's coming */}
           <Section label="WHO'S COMING">
             <View style={ed.attendeeRow}>
               {ev.attendees.map(a => (
@@ -489,23 +469,16 @@ function EventDetail({
             </View>
           </Section>
 
-          {/* Outfit vibes */}
           <Section label="OUTFIT VIBES">
             <View style={ed.chipRow}>
               {OUTFIT_VIBES.map(v => (
-                <TouchableOpacity
-                  key={v}
-                  style={[ed.vibeChip, ev.outfit === v && ed.vibeChipActive]}
-                  onPress={() => editMode && setEv(p => ({ ...p, outfit: v }))}
-                  activeOpacity={editMode ? 0.7 : 1}
-                >
+                <TouchableOpacity key={v} style={[ed.vibeChip, ev.outfit === v && ed.vibeChipActive]} onPress={() => editMode && setEv(p => ({ ...p, outfit: v }))} activeOpacity={editMode ? 0.7 : 1}>
                   <Text style={[ed.vibeChipText, ev.outfit === v && ed.vibeChipTextActive]}>{v}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </Section>
 
-          {/* Music */}
           <Section label="MUSIC">
             <View style={ed.musicCard}>
               <Text style={ed.musicIcon}>🎵</Text>
@@ -518,33 +491,16 @@ function EventDetail({
             </View>
           </Section>
 
-          {/* Food */}
           <Section label="FOOD & DRINKS">
-            {ev.food.map(f => (
-              <ListRow
-                key={f.id}
-                item={f}
-                onClaim={() => claimFood(f.id)}
-                onRemove={editMode ? () => removeFood(f.id) : undefined}
-              />
-            ))}
+            {ev.food.map(f => <ListRow key={f.id} item={f} onClaim={() => claimFood(f.id)} onRemove={editMode ? () => removeFood(f.id) : undefined} />)}
             <AddRow value={newFood} onChange={setNewFood} onAdd={addFood} placeholder="Add food or drink..." />
           </Section>
 
-          {/* Misc */}
           <Section label="MISC SUPPLIES">
-            {ev.misc.map(m => (
-              <ListRow
-                key={m.id}
-                item={m}
-                onClaim={() => claimMisc(m.id)}
-                onRemove={editMode ? () => removeMisc(m.id) : undefined}
-              />
-            ))}
+            {ev.misc.map(m => <ListRow key={m.id} item={m} onClaim={() => claimMisc(m.id)} onRemove={editMode ? () => removeMisc(m.id) : undefined} />)}
             <AddRow value={newMisc} onChange={setNewMisc} onAdd={addMisc} placeholder="Add a supply..." />
           </Section>
 
-          {/* Location */}
           <Section label="LOCATION">
             <View style={ed.locationCard}>
               <Text style={ed.locationIcon}>📍</Text>
@@ -564,7 +520,6 @@ function EventDetail({
             </View>
           </Section>
 
-          {/* Parking */}
           <Section label="PARKING">
             <View style={ed.locationCard}>
               <Text style={ed.locationIcon}>🅿️</Text>
@@ -584,24 +539,18 @@ function EventDetail({
             </View>
           </Section>
 
-          {/* Confirm button (only when not yet confirmed) */}
           {!ev.confirmed && (
             <TouchableOpacity style={ed.confirmBtn} onPress={handleConfirm}>
               <Text style={ed.confirmBtnText}>Confirm Hangout ✓</Text>
             </TouchableOpacity>
           )}
-
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
 
-      {/* ── Suggestions tab ── */}
       {activeTab === 'suggestions' && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={ed.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={sg.intro}>
-            Your crew can drop ideas here. Accept what works, pass on what doesn't.
-          </Text>
-
+          <Text style={sg.intro}>Your crew can drop ideas here. Accept what works, pass on what doesn't.</Text>
           {ev.suggestions.length === 0 ? (
             <View style={sg.emptyState}>
               <Text style={sg.emptyEmoji}>💬</Text>
@@ -610,18 +559,9 @@ function EventDetail({
             </View>
           ) : (
             ev.suggestions.map(suggestion => (
-              <View
-                key={suggestion.id}
-                style={[
-                  sg.card,
-                  suggestion.status === 'accepted' && sg.cardAccepted,
-                  suggestion.status === 'declined' && sg.cardDeclined,
-                ]}
-              >
+              <View key={suggestion.id} style={[sg.card, suggestion.status === 'accepted' && sg.cardAccepted, suggestion.status === 'declined' && sg.cardDeclined]}>
                 <View style={sg.cardHeader}>
-                  <View style={sg.fromBadge}>
-                    <Text style={sg.fromText}>{suggestion.from[0]}</Text>
-                  </View>
+                  <View style={sg.fromBadge}><Text style={sg.fromText}>{suggestion.from[0]}</Text></View>
                   <Text style={sg.fromName}>{suggestion.from} suggested</Text>
                   {suggestion.status !== 'pending' && (
                     <View style={[sg.statusBadge, suggestion.status === 'accepted' ? sg.statusAccepted : sg.statusDeclined]}>
@@ -650,7 +590,7 @@ function EventDetail({
   );
 }
 
-// ── Small shared sub-components ───────────────────────────────────────────────
+// ── Shared sub-components ─────────────────────────────────────
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={ed.section}>
@@ -668,14 +608,8 @@ function ListRow({ item, onClaim, onRemove }: { item: FoodItem | MiscItem; onCla
       <Text style={ed.listItemName}>{item.name}</Text>
       <View style={ed.listRowRight}>
         {onRemove && <TouchableOpacity style={ed.removeBtn} onPress={onRemove}><Text style={ed.removeBtnText}>✕</Text></TouchableOpacity>}
-        <TouchableOpacity
-          style={[ed.claimBtn, isYou && ed.claimBtnYou, isOther && ed.claimBtnOther]}
-          onPress={onClaim}
-          disabled={!!isOther}
-        >
-          <Text style={[ed.claimBtnText, isYou && ed.claimBtnTextYou, isOther && ed.claimBtnTextOther]}>
-            {item.claimedBy ?? 'Claim'}
-          </Text>
+        <TouchableOpacity style={[ed.claimBtn, isYou && ed.claimBtnYou, isOther && ed.claimBtnOther]} onPress={onClaim} disabled={!!isOther}>
+          <Text style={[ed.claimBtnText, isYou && ed.claimBtnTextYou, isOther && ed.claimBtnTextOther]}>{item.claimedBy ?? 'Claim'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -685,171 +619,85 @@ function ListRow({ item, onClaim, onRemove }: { item: FoodItem | MiscItem; onCla
 function AddRow({ value, onChange, onAdd, placeholder }: { value: string; onChange: (v: string) => void; onAdd: () => void; placeholder: string }) {
   return (
     <View style={ed.addRow}>
-      <TextInput
-        style={ed.addInput} value={value} onChangeText={onChange}
-        placeholder={placeholder} placeholderTextColor={THEME.textMuted}
-        onSubmitEditing={onAdd} returnKeyType="done"
-      />
-      <TouchableOpacity style={ed.addBtn} onPress={onAdd}>
-        <Text style={ed.addBtnText}>Add</Text>
-      </TouchableOpacity>
+      <TextInput style={ed.addInput} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={THEME.textMuted} onSubmitEditing={onAdd} returnKeyType="done" />
+      <TouchableOpacity style={ed.addBtn} onPress={onAdd}><Text style={ed.addBtnText}>Add</Text></TouchableOpacity>
     </View>
   );
 }
 
-// ── Styles: event detail + suggestions ───────────────────────────────────────
-const ed = StyleSheet.create({
-  scrollContent: { paddingBottom: 60 },
-
-  tabBar: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: GUTTER, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(139,92,246,0.15)',
-    gap: 8,
-  },
-  backBtn:     {},
-  backBtnText: { fontSize: 14, fontWeight: '600', color: THEME.purpleLight },
-  tabs:        { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center' },
-  tab: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 10, borderWidth: 1, borderColor: 'transparent',
-  },
-  tabActive:      { backgroundColor: THEME.purpleDim, borderColor: 'rgba(139,92,246,0.3)' },
-  tabText:        { fontSize: 13, fontWeight: '600', color: THEME.textMuted },
-  tabTextActive:  { color: THEME.purpleLight },
-  editBtn: {
-    backgroundColor: THEME.purpleDim, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)',
-  },
-  editBtnActive:     { backgroundColor: THEME.gold, borderColor: THEME.gold },
-  editBtnText:       { fontSize: 13, color: THEME.purpleLight, fontWeight: '600' },
-  editBtnTextActive: { color: '#1a1333', fontWeight: '700' },
-
-  header: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', padding: GUTTER, paddingBottom: 0 },
-  emoji:  { fontSize: 44, marginTop: 2 },
-  eventName: { fontSize: 26, fontWeight: '800', color: THEME.text, letterSpacing: -0.5, marginBottom: 8 },
-  nameInput: { fontSize: 22, fontWeight: '800', color: THEME.text, borderBottomWidth: 1.5, borderBottomColor: THEME.purple, paddingBottom: 4, marginBottom: 8 },
-  metaRow:    { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  metaChip:   { backgroundColor: THEME.purpleDim, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)' },
-  metaChipText: { fontSize: 12, fontWeight: '600', color: THEME.textSub },
-  confirmedChip: { backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)' },
-  confirmedChipText: { fontSize: 12, fontWeight: '700', color: THEME.green },
-
-  countdown: {
-    margin: GUTTER, backgroundColor: THEME.goldDim, borderRadius: 16,
-    borderWidth: 1.5, borderColor: 'rgba(250,204,21,0.3)', padding: 18,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
-  countdownLabel: { fontSize: 12, color: THEME.textMuted, marginBottom: 4 },
-  countdownNum:   { fontSize: 28, fontWeight: '800', color: THEME.text },
-  countdownEvent: { fontSize: 15, fontWeight: '700', color: THEME.gold, marginTop: 2 },
-  countdownMoon:  { fontSize: 48 },
-
-  section:      { marginHorizontal: GUTTER, marginBottom: 20 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: THEME.purpleMuted, marginBottom: 10 },
-
-  attendeeRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  attendeeChip:   { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: THEME.card, borderRadius: 20, paddingRight: 12, paddingLeft: 4, paddingVertical: 4, borderWidth: 1 },
-  attendeeAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  attendeeInitial:{ fontSize: 12, fontWeight: '700' },
-  attendeeName:   { fontSize: 13, fontWeight: '600', color: THEME.text },
-
-  chipRow:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  vibeChip:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.cardBorder },
-  vibeChipActive:   { backgroundColor: THEME.gold, borderColor: THEME.gold },
-  vibeChipText:     { fontSize: 13, fontWeight: '600', color: THEME.textSub },
-  vibeChipTextActive:{ color: '#1a1333', fontWeight: '700' },
-
-  musicCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder, padding: 14 },
-  musicIcon:  { fontSize: 22 },
-  musicTitle: { fontSize: 14, fontWeight: '600', color: THEME.text },
-  musicSub:   { fontSize: 12, color: THEME.textMuted, marginTop: 2 },
-
-  inlineInput:    { fontSize: 14, color: THEME.text, borderBottomWidth: 1, borderBottomColor: THEME.purple, paddingBottom: 2 },
-  parkingNotesInput: {
-    fontSize: 13, color: THEME.text, backgroundColor: 'rgba(20,16,44,0.5)',
-    borderRadius: 8, borderWidth: 1, borderColor: 'rgba(139,92,246,0.2)',
-    padding: 10, lineHeight: 18, textAlignVertical: 'top',
-  },
-
-  listRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.card, borderRadius: 12, borderWidth: 1, borderColor: THEME.cardBorder, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8 },
-  listItemName:  { fontSize: 14, fontWeight: '500', color: THEME.text, flex: 1 },
-  listRowRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  removeBtn:     { padding: 4 },
-  removeBtnText: { fontSize: 12, color: THEME.red, fontWeight: '700' },
-  claimBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(139,92,246,0.12)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)' },
-  claimBtnYou:   { backgroundColor: 'rgba(250,204,21,0.15)', borderColor: 'rgba(250,204,21,0.4)' },
-  claimBtnOther: { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)' },
-  claimBtnText:      { fontSize: 11, fontWeight: '700', color: THEME.purpleLight },
-  claimBtnTextYou:   { color: THEME.gold },
-  claimBtnTextOther: { color: THEME.green },
-
-  addRow:    { flexDirection: 'row', gap: 8, marginTop: 4 },
-  addInput:  { flex: 1, backgroundColor: 'rgba(30,24,56,0.6)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(139,92,246,0.2)', paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, color: THEME.text },
-  addBtn:    { backgroundColor: THEME.purpleDim, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)', justifyContent: 'center' },
-  addBtnText:{ fontSize: 13, fontWeight: '700', color: THEME.purpleLight },
-
-  locationCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder, padding: 14 },
-  locationIcon: { fontSize: 20, marginTop: 2 },
-  locationName: { fontSize: 14, fontWeight: '600', color: THEME.text },
-  locationAddr: { fontSize: 12, color: THEME.textMuted, marginTop: 3, lineHeight: 17 },
-
-  confirmBtn:     { marginHorizontal: GUTTER, marginTop: 8, backgroundColor: THEME.gold, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  confirmBtnText: { fontSize: 16, fontWeight: '800', color: '#1a1333' },
-});
-
-const sg = StyleSheet.create({
-  intro: { marginHorizontal: GUTTER, marginTop: 16, marginBottom: 20, fontSize: 13, color: THEME.textMuted, lineHeight: 19 },
-  emptyState: { alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: THEME.text, marginBottom: 6 },
-  emptySub:   { fontSize: 13, color: THEME.textMuted },
-
-  card: {
-    marginHorizontal: GUTTER, marginBottom: 12,
-    backgroundColor: THEME.card, borderRadius: 16,
-    borderWidth: 1, borderColor: THEME.cardBorder, padding: 16,
-  },
-  cardAccepted: { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.06)' },
-  cardDeclined: { opacity: 0.5 },
-
-  cardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  fromBadge: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: THEME.purpleDim, borderWidth: 1, borderColor: 'rgba(139,92,246,0.4)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  fromText:    { fontSize: 12, fontWeight: '800', color: THEME.purpleLight },
-  fromName:    { flex: 1, fontSize: 13, fontWeight: '600', color: THEME.textMuted },
-  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },
-  statusAccepted: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
-  statusDeclined: { backgroundColor: THEME.redDim, borderColor: 'rgba(239,68,68,0.3)' },
-  statusText:  { fontSize: 11, fontWeight: '700', color: THEME.text },
-
-  suggestionText: { fontSize: 14, color: THEME.text, lineHeight: 20, marginBottom: 14 },
-
-  actionRow:   { flexDirection: 'row', gap: 8 },
-  acceptBtn: {
-    flex: 1, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 10,
-    paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)',
-  },
-  acceptBtnText: { fontSize: 13, fontWeight: '700', color: THEME.green },
-  declineBtn: {
-    backgroundColor: THEME.purpleDim, borderRadius: 10,
-    paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)',
-  },
-  declineBtnText: { fontSize: 13, fontWeight: '600', color: THEME.textMuted },
-});
-
-// ── Root screen ───────────────────────────────────────────────────────────────
+// ── Root screen ───────────────────────────────────────────────
 type ViewType = 'list' | 'create' | 'detail';
 
 export default function HangoutsScreen() {
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? '';
+
   const [view, setView]         = useState<ViewType>('list');
-  const [events, setEvents]     = useState<HangoutEvent[]>(MOCK_EVENTS);
+  const [events, setEvents]     = useState<HangoutEvent[]>([]);
   const [selected, setSelected] = useState<HangoutEvent | null>(null);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
+  // ── Load existing hangouts from Supabase on mount ──
+  useEffect(() => {
+    if (!userId) return;
+
+    async function loadEvents() {
+      try {
+        // Get event IDs the user is a member of
+        const { data: memberRows, error: memberError } = await supabase
+          .from('event_members')
+          .select('event_id')
+          .eq('user_id', userId);
+
+        if (memberError) throw memberError;
+
+        const eventIds = (memberRows ?? []).map((r: any) => r.event_id);
+
+        if (eventIds.length === 0) {
+          setEvents([]);
+          setLoadingEvents(false);
+          return;
+        }
+
+        // Fetch those events
+        const { data: eventRows, error: eventError } = await supabase
+          .from('events')
+          .select('id, title, start_time, description, group_id, location_name, location_address, parking_info')
+          .in('id', eventIds)
+          .order('start_time', { ascending: true });
+
+        if (eventError) throw eventError;
+
+        const loaded: HangoutEvent[] = (eventRows ?? []).map((r: any) => ({
+          id:          r.id,
+          groupId:     r.group_id ?? '',
+          emoji:       r.description?.split(' ')[0] ?? '🎉',
+          name:        r.title,
+          date:        r.start_time ? new Date(r.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'TBD',
+          time:        r.start_time ? new Date(r.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'TBD',
+          confirmed:   false,
+          attendees:   [{ id: userId, name: 'You', color: THEME.gold }],
+          outfit:      'Whatever',
+          playlist:    '',
+          locationName: r.location_name ?? '',
+          locationAddr: r.location_address ?? '',
+          parkingName:  '',
+          parkingNotes: r.parking_info ?? '',
+          food:         [],
+          misc:         [],
+          suggestions:  [],
+        }));
+
+        setEvents(loaded);
+      } catch (err: any) {
+        Alert.alert('Error loading hangouts', err.message ?? 'Unknown error');
+      } finally {
+        setLoadingEvents(false);
+      }
+    }
+
+    loadEvents();
+  }, [userId]);
 
   function handleSelect(ev: HangoutEvent) {
     setSelected(ev);
@@ -872,10 +720,19 @@ export default function HangoutsScreen() {
       <StatusBar style="light" />
       <HangoutHeader />
       {view === 'list' && (
-        <HangoutsList events={events} onSelect={handleSelect} onCreateNew={() => setView('create')} />
+        <HangoutsList
+          events={events}
+          loading={loadingEvents}
+          onSelect={handleSelect}
+          onCreateNew={() => setView('create')}
+        />
       )}
       {view === 'create' && (
-        <CreateHangoutForm onBack={() => setView('list')} onCreate={handleCreate} />
+        <CreateHangoutForm
+          userId={userId}
+          onBack={() => setView('list')}
+          onCreate={handleCreate}
+        />
       )}
       {view === 'detail' && selected && (
         <EventDetail event={selected} onBack={() => setView('list')} onConfirm={handleConfirm} />
@@ -883,6 +740,100 @@ export default function HangoutsScreen() {
     </View>
   );
 }
+
+// ── Styles: event detail + suggestions ───────────────────────
+const ed = StyleSheet.create({
+  scrollContent: { paddingBottom: 60 },
+  tabBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: GUTTER, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(139,92,246,0.15)', gap: 8 },
+  backBtn: {}, backBtnText: { fontSize: 14, fontWeight: '600', color: THEME.purpleLight },
+  tabs: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center' },
+  tab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
+  tabActive: { backgroundColor: THEME.purpleDim, borderColor: 'rgba(139,92,246,0.3)' },
+  tabText: { fontSize: 13, fontWeight: '600', color: THEME.textMuted },
+  tabTextActive: { color: THEME.purpleLight },
+  editBtn: { backgroundColor: THEME.purpleDim, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)' },
+  editBtnActive: { backgroundColor: THEME.gold, borderColor: THEME.gold },
+  editBtnText: { fontSize: 13, color: THEME.purpleLight, fontWeight: '600' },
+  editBtnTextActive: { color: '#1a1333', fontWeight: '700' },
+  header: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', padding: GUTTER, paddingBottom: 0 },
+  emoji: { fontSize: 44, marginTop: 2 },
+  eventName: { fontSize: 26, fontWeight: '800', color: THEME.text, letterSpacing: -0.5, marginBottom: 8 },
+  nameInput: { fontSize: 22, fontWeight: '800', color: THEME.text, borderBottomWidth: 1.5, borderBottomColor: THEME.purple, paddingBottom: 4, marginBottom: 8 },
+  metaRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  metaChip: { backgroundColor: THEME.purpleDim, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)' },
+  metaChipText: { fontSize: 12, fontWeight: '600', color: THEME.textSub },
+  confirmedChip: { backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)' },
+  confirmedChipText: { fontSize: 12, fontWeight: '700', color: THEME.green },
+  countdown: { margin: GUTTER, backgroundColor: THEME.goldDim, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(250,204,21,0.3)', padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  countdownLabel: { fontSize: 12, color: THEME.textMuted, marginBottom: 4 },
+  countdownNum: { fontSize: 28, fontWeight: '800', color: THEME.text },
+  countdownEvent: { fontSize: 15, fontWeight: '700', color: THEME.gold, marginTop: 2 },
+  countdownMoon: { fontSize: 48 },
+  section: { marginHorizontal: GUTTER, marginBottom: 20 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: THEME.purpleMuted, marginBottom: 10 },
+  attendeeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  attendeeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: THEME.card, borderRadius: 20, paddingRight: 12, paddingLeft: 4, paddingVertical: 4, borderWidth: 1 },
+  attendeeAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  attendeeInitial: { fontSize: 12, fontWeight: '700' },
+  attendeeName: { fontSize: 13, fontWeight: '600', color: THEME.text },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  vibeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.cardBorder },
+  vibeChipActive: { backgroundColor: THEME.gold, borderColor: THEME.gold },
+  vibeChipText: { fontSize: 13, fontWeight: '600', color: THEME.textSub },
+  vibeChipTextActive: { color: '#1a1333', fontWeight: '700' },
+  musicCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder, padding: 14 },
+  musicIcon: { fontSize: 22 },
+  musicTitle: { fontSize: 14, fontWeight: '600', color: THEME.text },
+  musicSub: { fontSize: 12, color: THEME.textMuted, marginTop: 2 },
+  inlineInput: { fontSize: 14, color: THEME.text, borderBottomWidth: 1, borderBottomColor: THEME.purple, paddingBottom: 2 },
+  parkingNotesInput: { fontSize: 13, color: THEME.text, backgroundColor: 'rgba(20,16,44,0.5)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(139,92,246,0.2)', padding: 10, lineHeight: 18, textAlignVertical: 'top' },
+  listRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: THEME.card, borderRadius: 12, borderWidth: 1, borderColor: THEME.cardBorder, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8 },
+  listItemName: { fontSize: 14, fontWeight: '500', color: THEME.text, flex: 1 },
+  listRowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  removeBtn: { padding: 4 },
+  removeBtnText: { fontSize: 12, color: THEME.red, fontWeight: '700' },
+  claimBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(139,92,246,0.12)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)' },
+  claimBtnYou: { backgroundColor: 'rgba(250,204,21,0.15)', borderColor: 'rgba(250,204,21,0.4)' },
+  claimBtnOther: { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.3)' },
+  claimBtnText: { fontSize: 11, fontWeight: '700', color: THEME.purpleLight },
+  claimBtnTextYou: { color: THEME.gold },
+  claimBtnTextOther: { color: THEME.green },
+  addRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  addInput: { flex: 1, backgroundColor: 'rgba(30,24,56,0.6)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(139,92,246,0.2)', paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, color: THEME.text },
+  addBtn: { backgroundColor: THEME.purpleDim, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)', justifyContent: 'center' },
+  addBtnText: { fontSize: 13, fontWeight: '700', color: THEME.purpleLight },
+  locationCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder, padding: 14 },
+  locationIcon: { fontSize: 20, marginTop: 2 },
+  locationName: { fontSize: 14, fontWeight: '600', color: THEME.text },
+  locationAddr: { fontSize: 12, color: THEME.textMuted, marginTop: 3, lineHeight: 17 },
+  confirmBtn: { marginHorizontal: GUTTER, marginTop: 8, backgroundColor: THEME.gold, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  confirmBtnText: { fontSize: 16, fontWeight: '800', color: '#1a1333' },
+});
+
+const sg = StyleSheet.create({
+  intro: { marginHorizontal: GUTTER, marginTop: 16, marginBottom: 20, fontSize: 13, color: THEME.textMuted, lineHeight: 19 },
+  emptyState: { alignItems: 'center', paddingTop: 60 },
+  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: THEME.text, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: THEME.textMuted },
+  card: { marginHorizontal: GUTTER, marginBottom: 12, backgroundColor: THEME.card, borderRadius: 16, borderWidth: 1, borderColor: THEME.cardBorder, padding: 16 },
+  cardAccepted: { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.06)' },
+  cardDeclined: { opacity: 0.5 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  fromBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: THEME.purpleDim, borderWidth: 1, borderColor: 'rgba(139,92,246,0.4)', alignItems: 'center', justifyContent: 'center' },
+  fromText: { fontSize: 12, fontWeight: '800', color: THEME.purpleLight },
+  fromName: { flex: 1, fontSize: 13, fontWeight: '600', color: THEME.textMuted },
+  statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },
+  statusAccepted: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
+  statusDeclined: { backgroundColor: THEME.redDim, borderColor: 'rgba(239,68,68,0.3)' },
+  statusText: { fontSize: 11, fontWeight: '700', color: THEME.text },
+  suggestionText: { fontSize: 14, color: THEME.text, lineHeight: 20, marginBottom: 14 },
+  actionRow: { flexDirection: 'row', gap: 8 },
+  acceptBtn: { flex: 1, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)' },
+  acceptBtnText: { fontSize: 13, fontWeight: '700', color: THEME.green },
+  declineBtn: { backgroundColor: THEME.purpleDim, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(139,92,246,0.25)' },
+  declineBtnText: { fontSize: 13, fontWeight: '600', color: THEME.textMuted },
+});
 
 const root = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.bg },

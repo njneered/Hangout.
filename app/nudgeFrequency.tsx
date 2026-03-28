@@ -1,9 +1,4 @@
-/**
- * NOTE: Replace CURRENT_USER_ID with your real auth call once
- * auth is set up. For now it will show "No groups yet" until
- * a real user ID is provided.
- */
-
+import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -17,11 +12,6 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-
-// ── SWAP THIS for your real auth call when ready ─────────────
-// e.g. const { data: { user } } = await supabase.auth.getUser();
-const CURRENT_USER_ID = 'YOUR_AUTH_USER_ID';
-// ─────────────────────────────────────────────────────────────
 
 const THEME = {
   bg: '#0f0a1f',
@@ -49,6 +39,9 @@ type FrequencyMap = Record<string, number>;
 
 export default function NudgeFrequencyScreen() {
   const router = useRouter();
+  const { session } = useAuth();
+  const CURRENT_USER_ID = session?.user?.id ?? '';
+
   const [groups, setGroups]           = useState<Group[]>([]);
   const [frequencies, setFrequencies] = useState<FrequencyMap>({});
   const [loading, setLoading]         = useState(true);
@@ -57,7 +50,6 @@ export default function NudgeFrequencyScreen() {
   useEffect(() => {
     async function load() {
       try {
-        // 1. Get group IDs this user belongs to
         const { data: memberRows, error: memberError } = await supabase
           .from('group_members')
           .select('group_id')
@@ -73,7 +65,6 @@ export default function NudgeFrequencyScreen() {
           return;
         }
 
-        // 2. Fetch group names
         const { data: groupRows, error: groupError } = await supabase
           .from('groups')
           .select('id, name')
@@ -88,7 +79,6 @@ export default function NudgeFrequencyScreen() {
 
         setGroups(loadedGroups);
 
-        // 3. Fetch saved nudge preferences
         const { data: prefRows, error: prefError } = await supabase
           .from('user_nudge_preferences')
           .select('group_id, frequency_days')
@@ -97,7 +87,6 @@ export default function NudgeFrequencyScreen() {
 
         if (prefError) throw prefError;
 
-        // Default all groups to 7 days, then overwrite with saved prefs
         const map: FrequencyMap = {};
         loadedGroups.forEach(g => { map[g.id] = 7; });
         (prefRows ?? []).forEach((r: any) => {
