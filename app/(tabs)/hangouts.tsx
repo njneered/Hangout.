@@ -64,6 +64,7 @@ async function saveEventChanges(updatedEvent : HangoutEvent) {
     .from ('events')
     .update({
       title: updatedEvent.name,
+      confirmed: updatedEvent.confirmed,
       location_name: updatedEvent.locationName,
       location_address: updatedEvent.locationAddr,
       latitude: updatedEvent.locationLat ?? null,
