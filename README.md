@@ -68,7 +68,8 @@ app/
 
 # Reusable UI
 components/
-└── HangoutHeader.tsx      # Shared header (logo + gear/settings icon)
+├── HangoutHeader.tsx      # Shared header (logo + gear/settings icon)
+└── LocationAutoComplete.tsx # Autocomplete formatting and logic
 
 
 constants/
@@ -149,6 +150,9 @@ providers/
 - [x] Hangouts page replaced Event page
 - [x] Event card list UI
 - [x] Suggestions tab system
+- [x] Confirmed event state UI
+- [x] Location & Parking autocomplete
+- [x] Confirmed event state UI
 - [x] Confirmed event state UI
 
 

@@ -1,21 +1,11 @@
 import HangoutHeader from '@/components/HangoutHeader';
-import { useAuth } from '@/providers/AuthProvider';
+import LocationAutocomplete from '@/components/LocationAutoComplete';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'expo-router';
+import { useAuth } from '@/providers/AuthProvider';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const THEME = {
   bg: '#0f0a1f',
@@ -58,11 +48,37 @@ interface HangoutEvent {
   playlist: string;
   locationName: string;
   locationAddr: string;
+  locationLat: number | null; // For Map
+  locationLon: number | null; // For Map
   parkingName: string;
+  parkingAddr: string;
   parkingNotes: string;
   food: FoodItem[];
   misc: MiscItem[];
   suggestions: Suggestion[];
+}
+
+// -- Update db Function --
+async function saveEventChanges(updatedEvent : HangoutEvent) {
+  const {error} = await supabase
+    .from ('events')
+    .update({
+      title: updatedEvent.name,
+      location_name: updatedEvent.locationName,
+      location_address: updatedEvent.locationAddr,
+      latitude: updatedEvent.locationLat ?? null,
+      longitude: updatedEvent.locationLon ?? null,
+      parking_name: updatedEvent.parkingName,
+      parking_addr: updatedEvent.parkingAddr,
+      parking_info: updatedEvent.parkingNotes,
+      playlist: updatedEvent.playlist,
+      outfit: updatedEvent.outfit,
+    })
+    .eq('id', updatedEvent.id);
+
+    if (error) throw error;
+
+    // TODO : Link & Update event_items table 
 }
 
 // ── Hangouts List ─────────────────────────────────────────────
@@ -177,15 +193,61 @@ function CreateHangoutForm({
   onCreate: (e: HangoutEvent) => void;
 }) {
   const [name, setName]   = useState('');
-  const [date, setDate]   = useState('');
-  const [time, setTime]   = useState('');
   const [emoji, setEmoji] = useState('🎉');
+  const [eventDate, setEventDate] = useState<Date | null>(null);
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const EMOJI_OPTIONS = ['🎉','🎮','🍕','🎬','🏖️','🎤','🍻','🏀'];
 
+    function formatDate(date: Date | null) {
+    if (!date) return 'Select a date';
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+
+  function formatTime(date: Date | null) {
+    if (!date) return 'Select a time';
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
+    function handleDateChange(_event: any, selectedDate?: Date) {
+    setShowDatePicker(false);
+    if (!selectedDate) return;
+
+    setEventDate(prev => {
+      const base = prev ?? new Date();
+      const next = new Date(base);
+      next.setFullYear(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
+      );
+      return next;
+    });
+  }
+
+    function handleTimeChange(_event: any, selectedTime?: Date) {
+    if (!selectedTime) return;
+
+    setEventDate(prev => {
+      const base = prev ?? new Date();
+      const next = new Date(base);
+      next.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+      return next;
+    });
+  }
+
   async function handleCreate() {
-    if (!name.trim() || !userId) return;
+    if (!name.trim() || !userId || !eventDate) return;
     setSaving(true);
 
     try {
@@ -214,14 +276,14 @@ function CreateHangoutForm({
       if (memberError) throw memberError;
 
       // ── 3. Create the event linked to the group ──
-      const startTime = new Date().toISOString(); // TODO: parse date+time fields properly
+      const startTime = new Date().toISOString();
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .insert({
           title:       name.trim(),
           creator_id:  userId,
           group_id:    groupId,
-          start_time:  startTime,
+          start_time:  eventDate.toISOString(),
           description: `${emoji} ${name.trim()}`,
           is_group_event: true,
         })
@@ -249,15 +311,18 @@ function CreateHangoutForm({
         groupId:     groupId,
         emoji,
         name:        name.trim(),
-        date:        date.trim() || 'TBD',
-        time:        time.trim() || 'TBD',
+        date:        formatDate(eventDate),
+        time:        formatTime(eventDate),
         confirmed:   false,
         attendees:   [{ id: userId, name: 'You', color: THEME.gold }],
         outfit:      'Whatever',
         playlist:    '',
         locationName:'',
         locationAddr:'',
+        locationLat: null,
+        locationLon: null,
         parkingName: '',
+        parkingAddr: '',
         parkingNotes:'',
         food:        [],
         misc:        [],
@@ -303,22 +368,44 @@ function CreateHangoutForm({
         />
 
         <Text style={cf.label}>DATE</Text>
-        <TextInput
-          style={cf.input}
-          placeholder="e.g. Friday, April 4"
-          placeholderTextColor={THEME.textMuted}
-          value={date}
-          onChangeText={setDate}
-        />
+        <TouchableOpacity style={cf.input} onPress={() => setShowDatePicker(true)}>
+          <Text style={{ color: eventDate ? THEME.text : THEME.textMuted }}>
+            {eventDate ? formatDate(eventDate) : 'Select date'}
+          </Text>
+        </TouchableOpacity>
+
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={eventDate ?? new Date()}
+            mode="date"
+            display="inline"
+            onChange={handleDateChange}
+          />
+        )}
 
         <Text style={cf.label}>TIME</Text>
-        <TextInput
-          style={cf.input}
-          placeholder="e.g. 7:00 PM"
-          placeholderTextColor={THEME.textMuted}
-          value={time}
-          onChangeText={setTime}
-        />
+        <TouchableOpacity style={cf.input} onPress={() => setShowTimePicker(true)}>
+          <Text style={{ color: eventDate ? THEME.text : THEME.textMuted }}>
+            {eventDate ? formatTime(eventDate) : 'Select time'}
+          </Text>
+        </TouchableOpacity>
+
+        {showTimePicker && (
+          <>
+            <DateTimePicker
+              value={eventDate ?? new Date()}
+              mode="time"
+              display="spinner"
+              onChange={handleTimeChange}
+            />
+            <TouchableOpacity 
+              style={cf.done} onPress={() => setShowTimePicker(false)}>
+              <Text style={{color: THEME.textMuted}}>Done</Text>
+            </TouchableOpacity>
+          </>
+          
+        )}
 
         <TouchableOpacity
           style={[cf.createBtn, (!name.trim() || saving) && cf.createBtnDisabled]}
@@ -352,6 +439,14 @@ const cf = StyleSheet.create({
     backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder,
     color: THEME.text, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 20, fontSize: 15,
   },
+
+  done: {
+    backgroundColor: THEME.card, borderRadius: 14, borderWidth: 1, borderColor: THEME.cardBorder,
+    color: THEME.text, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 20, fontSize: 15, alignSelf: 'flex-start',
+  },
+
+
+
   createBtn:        { backgroundColor: THEME.gold, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
   createBtnDisabled:{ opacity: 0.4 },
   createBtnText:    { color: '#1a1333', fontWeight: '800', fontSize: 16 },
@@ -391,12 +486,21 @@ function EventDetail({
   const removeFood = (id: string) => setEv(prev => ({ ...prev, food: prev.food.filter(f => f.id !== id) }));
   const removeMisc = (id: string) => setEv(prev => ({ ...prev, misc: prev.misc.filter(m => m.id !== id) }));
 
-  function handleConfirm() {
-    const confirmed = { ...ev, confirmed: true };
-    setEv(confirmed);
+  async function handleConfirmHangout() {
+    const confirmedEvent = { ...ev, confirmed: true };
+    await saveEventChanges(confirmedEvent);
+    setEv(confirmedEvent);
     setEditMode(false);
-    onConfirm(confirmed);
+    onConfirm(confirmedEvent);
   }
+
+  async function handleSaveEdits() {
+    const updated = { ...ev };
+    await saveEventChanges(updated);
+    setEv(updated);
+    setEditMode(false);
+    onConfirm(updated);
+}
 
   const daysUntil: number = (() => {
   const eventDate = new Date(ev.date);
@@ -423,7 +527,7 @@ function EventDetail({
             </Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[ed.editBtn, editMode && ed.editBtnActive]} onPress={() => setEditMode(e => !e)}>
+        <TouchableOpacity style={[ed.editBtn, editMode && ed.editBtnActive]} onPress={() => { if (editMode) {handleSaveEdits();} else { setEditMode(true); }}}>
           <Text style={[ed.editBtnText, editMode && ed.editBtnTextActive]}>{editMode ? 'Done' : '✏️'}</Text>
         </TouchableOpacity>
       </View>
@@ -506,10 +610,16 @@ function EventDetail({
               <Text style={ed.locationIcon}>📍</Text>
               <View style={{ flex: 1 }}>
                 {editMode ? (
-                  <>
-                    <TextInput style={ed.inlineInput} value={ev.locationName} onChangeText={v => setEv(p => ({ ...p, locationName: v }))} placeholder="Place name" placeholderTextColor={THEME.textMuted} />
-                    <TextInput style={[ed.inlineInput, { marginTop: 6 }]} value={ev.locationAddr} onChangeText={v => setEv(p => ({ ...p, locationAddr: v }))} placeholder="Address" placeholderTextColor={THEME.textMuted} />
-                  </>
+                    <LocationAutocomplete onSelect={( { name, address, latitude, longitude }) =>
+                      setEv(prev => ({
+                        ...prev,
+                        locationName: name,
+                        locationAddr: address,
+                        locationLat: latitude,
+                        locationLon: longitude,
+                      }))
+                    }
+                    />
                 ) : (
                   <>
                     <Text style={ed.locationName}>{ev.locationName || 'No location set'}</Text>
@@ -526,7 +636,14 @@ function EventDetail({
               <View style={{ flex: 1 }}>
                 {editMode ? (
                   <>
-                    <TextInput style={ed.inlineInput} value={ev.parkingName} onChangeText={v => setEv(p => ({ ...p, parkingName: v }))} placeholder="Parking spot / garage" placeholderTextColor={THEME.textMuted} />
+                    <LocationAutocomplete onSelect={( { name, address }) =>
+                      setEv(prev => ({
+                        ...prev,
+                        parkingName: name,
+                        parkingAddr: address,
+                      }))
+                    }
+                      />
                     <TextInput style={[ed.parkingNotesInput, { marginTop: 8 }]} value={ev.parkingNotes} onChangeText={v => setEv(p => ({ ...p, parkingNotes: v }))} placeholder="Notes (free after 5pm, etc.)" placeholderTextColor={THEME.textMuted} multiline numberOfLines={3} />
                   </>
                 ) : (
@@ -540,7 +657,7 @@ function EventDetail({
           </Section>
 
           {!ev.confirmed && (
-            <TouchableOpacity style={ed.confirmBtn} onPress={handleConfirm}>
+            <TouchableOpacity style={ed.confirmBtn} onPress={handleConfirmHangout}>
               <Text style={ed.confirmBtnText}>Confirm Hangout ✓</Text>
             </TouchableOpacity>
           )}
@@ -662,7 +779,7 @@ export default function HangoutsScreen() {
         // Fetch those events
         const { data: eventRows, error: eventError } = await supabase
           .from('events')
-          .select('id, title, start_time, description, group_id, location_name, location_address, parking_info')
+          .select('id, title, start_time, description, group_id, location_name, location_address, parking_name, parking_addr, parking_info, latitude, longitude, playlist, outfit, confirmed')
           .in('id', eventIds)
           .order('start_time', { ascending: true });
 
@@ -675,13 +792,16 @@ export default function HangoutsScreen() {
           name:        r.title,
           date:        r.start_time ? new Date(r.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'TBD',
           time:        r.start_time ? new Date(r.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'TBD',
-          confirmed:   false,
-          attendees:   [{ id: userId, name: 'You', color: THEME.gold }],
-          outfit:      'Whatever',
-          playlist:    '',
+          confirmed:   r.confirmed,
+          attendees:    [{ id: userId, name: 'You', color: THEME.gold }],
+          outfit:       r.outfit ?? 'Whatever',
+          playlist:     r.playlist ?? '',
           locationName: r.location_name ?? '',
           locationAddr: r.location_address ?? '',
-          parkingName:  '',
+          locationLat:  r.latitude ?? null,
+          locationLon:  r.longitude ?? null,
+          parkingName:  r.parking_name ?? '',
+          parkingAddr:  r.parking_addr ?? '',
           parkingNotes: r.parking_info ?? '',
           food:         [],
           misc:         [],

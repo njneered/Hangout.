@@ -5,6 +5,26 @@
 
 import { Platform } from 'react-native';
 
+export const EVENTTHEME = {
+  bg: '#0f0a1f',
+  bgSecondary: '#1a1333',
+  card: 'rgba(30,24,56,0.6)',
+  cardBorder: 'rgba(139,92,246,0.2)',
+  gold: '#facc15',
+  goldDim: 'rgba(250,204,21,0.1)',
+  purple: '#8b5cf6',
+  purpleLight: '#c4b5fd',
+  purpleMuted: '#a78bfa',
+  purpleDim: 'rgba(139,92,246,0.15)',
+  red: '#ef4444',
+  redDim: 'rgba(239,68,68,0.12)',
+  green: '#10b981',
+  greenDim: 'rgba(16,185,129,0.15)',
+  text: '#e8e4f3',
+  textSub: '#c4b5fd',
+  textMuted: '#a78bfa',
+};
+
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
