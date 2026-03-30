@@ -152,8 +152,8 @@ providers/
 - [x] Suggestions tab system
 - [x] Confirmed event state UI
 - [x] Location & Parking autocomplete
-- [x] Confirmed event state UI
-- [x] Confirmed event state UI
+- [x] Date and time confirmation during event creation
+- [x] Proper db updates during editing
 
 
 ---
@@ -163,7 +163,7 @@ providers/
 ### 🔴 Core / High Priority
 
 **Maps & Location Integration**
-Wire the location and parking fields to a maps API (Google Places or Apple Maps). When a user types in the location field, suggestions should pop up. Once selected, the address auto-fills and a map preview renders below the location card inside the event details page.
+Create a Map modal that pops up when a user clicks on an address. 
 
 **Dynamic Hangout Routing**
 Need to move from static hangouts to dynamic routes, persist events in database, and load per-event details dynamically.
@@ -173,7 +173,7 @@ Users need to be able to create a friend group, invite members, and have that gr
 
 **Add friends system (backend wiring)**
 
-**Event creation and persistence (backend wiring)**
+**Event creation and persistence (backend wiring)** // DONE?
 
 
 **Notifications & Edit Alerts**
