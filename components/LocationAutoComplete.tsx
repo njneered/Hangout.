@@ -36,7 +36,7 @@ onSelect,
                     });
                 }}
                 query={{
-                    key: 'AIzaSyDQBG2FoEyQMwgX4_sX67TO-EBBtuhD9CQ', // Shhh, dont tell anyone. 
+                    key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
                     language: 'en',
                     // TODO : Set boundaries based on user location. 
                 }}
