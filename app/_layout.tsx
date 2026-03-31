@@ -20,6 +20,7 @@ function RootNavigator() {
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       <Stack.Screen name="settings" />
       <Stack.Screen name="nudgeFrequency" />
+      <Stack.Screen name="calendarSync" options={{ headerShown: false }} />
     </Stack>
   );
 }

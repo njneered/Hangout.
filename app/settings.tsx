@@ -41,7 +41,7 @@ const SETTINGS_SECTIONS = [
     items: [
       { label: 'Connect Spotify' },
       { label: 'Connect Apple Music' },
-      { label: 'Calendar Sync' },
+      { label: 'Calendar Sync', route: '/calendarSync' },
       { label: 'Contacts Access' },
     ],
   },

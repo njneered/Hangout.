@@ -54,41 +54,50 @@ Hangout solves the coordination problem that kills most hangout plans. Instead o
 # Screens users navigate to
 app/
 ├── (auth)/
-│   ├── _layout.tsx        # Auth page config
-│   ├── login.tsx          # Login page
-│   ├── signup.tsx         # Signup page
+│   ├── _layout.tsx             # Auth page config
+│   ├── login.tsx               # Login page
+│   ├── signup.tsx              # Signup page
 ├── (tabs)/
-│   ├── _layout.tsx        # Tab bar config (Home, Schedule, Event)
-│   ├── index.tsx          # Home screen
-│   ├── schedule.tsx       # Schedule screen (monthly + weekly views)
-│   └── hangouts.tsx       # Event details screen + creation + details
-├── _layout.tsx            # Root stack layout (declares settings route)
-├── modal.tsx              # Modal stub
-└── settings.tsx           # Settings screen
+│   ├── _layout.tsx             # Tab bar config (Home, Schedule, Hangouts)
+│   ├── index.tsx               # Home screen
+│   ├── schedule.tsx            # Schedule screen (monthly + weekly views)
+│   └── hangouts.tsx            # Hangouts list + create + full event detail
+├── _layout.tsx                 # Root stack layout
+├── modal.tsx                   # Modal stub
+├── settings.tsx                # Settings screen
+├── nudgeFrequency.tsx          # Nudge frequency settings screen
+└── calendarSync.tsx            # Calendar sync screen (Apple Calendar + CSV)
 
 # Reusable UI
 components/
-├── HangoutHeader.tsx      # Shared header (logo + gear/settings icon)
-└── LocationAutoComplete.tsx # Autocomplete formatting and logic
-
+├── HangoutHeader.tsx           # Shared header (logo + gear/settings icon)
+├── LocationAutoComplete.tsx    # Google Places autocomplete input
+├── InviteSection.tsx           # Invite users by username or from friends list
+└── CalendarSync.tsx            # Apple Calendar + CSV import logic and UI
 
 constants/
-├── mockData.ts            # Mock friends, nudge, current user data
-└── theme.ts               # Shared theme tokens (if extracted)
+├── mockData.ts                 # Mock friends, nudge, current user data
+└── theme.ts                    # Shared theme tokens
 
 # API/Client setup
 lib/
-├── supabase.ts            # Supabase API Connect
-└── googleMaps.ts          # GoogleMaps API Connect
+├── supabase.ts                 # Supabase client
+└── googleMaps.ts               # Google Maps API client
 
 # Database or network logic
 services/
-└── eventService.ts        # Get events from current user via userId
+├── eventService.ts             # Get events from current user via userId
+└── nudgeService.ts             # Read/write nudge preferences, register push tokens
 
 # Auth
 providers/
-└── AuthProvider.tsx       # Manages auth state via Supabase (Tracks current login session)
+└── AuthProvider.tsx            # Manages auth state via Supabase
 
+# Supabase Edge Functions
+supabase/
+└── functions/
+    └── send-nudges/
+        └── index.ts            # Daily cron — sends push notifications for overdue hangouts
 ```
 
 ---
@@ -96,31 +105,48 @@ providers/
 ## Screens
 
 ### Home (`index.tsx`)
-- Greeting by time of day
+- Greeting by time of day using authenticated username
 - Nudge card: "It's been X days since hanging with [Name]" → Plan something button → navigates to Schedule
 - Recent hangouts list with overdue/soon badges
 
 ### Schedule (`schedule.tsx`)
 - **Monthly view:** tap a date to mark unavailable all day; 24-hour grid panel slides in below to customize specific busy hours; past dates are automatically dimmed and blocked
 - **Weekly view:** drag-to-paint busy hours across a 7-day grid with time labels; drag mode toggled via banner; friend availability shown as colored pips
-- Best night banner: auto-detects best available date based on friend busy days; "Lock it in →" navigates to Event details
+- Best night banner: auto-detects best available date based on friend busy days; "Lock it in →" navigates to Hangouts
 - Shared state: `dayMap` (`Record<string, { state, busyHours }>`) holds all availability
 
-### Event Details (`event.tsx`)
-- Countdown banner (days until event)
-- Who's coming (attendee chips)
-- Outfit vibes (selectable chips)
-- Music / playlist link
-- Food & Drinks list (add, claim, remove)
-- Misc supplies list — separate from food (add, claim, remove)
-- Location card (name + address)
-- Parking card (location + freeform notes)
-- Confirm event button
-- Edit mode toggle — all fields become editable inputs when active
+### Hangouts (`hangouts.tsx`)
+- **List view:** all hangouts the user is a member of, loaded live from Supabase with attendee counts and confirmed status
+- **Create view:** emoji picker, hangout name, native date calendar picker, native time scroll wheel; saves group + event + memberships to Supabase in one flow
+- **Detail view:** full event detail loaded live from Supabase
+  - Countdown banner (days until event)
+  - Who's coming (attendee chips with real usernames + RSVP status)
+  - Invite section (search by username or select from friends/recent groups)
+  - Outfit vibes (selectable chips, persisted to Supabase)
+  - Music / playlist link
+  - Food & Drinks list (add, claim, remove — all real-time Supabase)
+  - Misc supplies list (same as food)
+  - Location card with Google Places autocomplete
+  - Parking card with Google Places autocomplete + freeform notes
+  - Suggestions tab — anyone can submit, organizer can accept or decline
+  - Confirm event button (sets confirmed = true in Supabase)
+  - Edit mode toggle — all fields become editable, saves on "Save"
 
 ### Settings (`settings.tsx`)
-- Stub settings page with sections: Account, App, Integrations, Support
-- Accessible from gear icon in `HangoutHeader` on every screen
+- Sections: Account, App, Integrations, Support
+- **Nudge Frequency** (APP section) → navigates to nudge frequency screen
+- **Calendar Sync** (INTEGRATIONS section) → navigates to calendar sync screen
+- **Log Out** button — signs out via Supabase auth
+- Accessible from gear icon in HangoutHeader on every screen
+
+### Nudge Frequency (`nudgeFrequency.tsx`)
+- Shows all groups the user belongs to
+- Per-group frequency selector: Every 3 days / Weekly / Every 2 weeks / Monthly / Never
+- Saves preferences to `user_nudge_preferences` table in Supabase
+
+### Calendar Sync (`calendarSync.tsx`)
+- **Apple Calendar sync** — requests device calendar permission, reads all events for next 60 days, saves busy blocks to `user_availability` in Supabase
+- **CSV import** — pick a Google Calendar or other export file, parses busy times, saves same way
 
 ---
 
@@ -133,28 +159,31 @@ providers/
 - [x] Past date blocking (silently dimmed, tap ignored)
 - [x] Weekly calendar view with drag-to-paint PanResponder (locked, working)
 - [x] Best night auto-detection banner
-- [x] "Lock it in" navigation from schedule → event details
-- [x] Event details page with all sections (food, misc, location, parking, vibes, music, attendees)
-- [x] Edit mode toggle (pencil icon) on event details
-- [x] Claim/unclaim items on food and misc lists
-- [x] Add/remove items on food and misc lists
-- [x] Stub settings screen
-- [x] Tab bar navigation (Home, Schedule, Event)
-- [x] `app.json` architectural config locked (`newArchEnabled: false`)\
-- [x] Finalized logo! YAY
-- [x] Created Supabase Project & Tables (Users, Friends, Groups & Members, Events - Items(Food & Misc) & Members)
-- [x] User Sign-up, log-in, log-out done. 
-- [x] Profile page redesign (stats, friends modal, edit mode)
-- [x] Username-based greeting system instead of email
+- [x] "Lock it in" navigation from schedule → hangouts
+- [x] Tab bar navigation (Home, Schedule, Hangouts)
+- [x] `app.json` architectural config locked (`newArchEnabled: false`)
+- [x] Finalized logo
+- [x] Supabase project and tables (Users, Friends, Groups & Members, Events, Items, Members, Suggestions, Nudge Preferences, Availability)
+- [x] User sign-up, log-in, log-out
+- [x] Profile page (stats, friends modal, edit mode)
+- [x] Username-based greeting system
 - [x] Avatar-based hangout previews
-- [x] Hangouts page replaced Event page
-- [x] Event card list UI
-- [x] Suggestions tab system
-- [x] Confirmed event state UI
-- [x] Location & Parking autocomplete
-- [x] Date and time confirmation during event creation
-- [x] Proper db updates during editing
-
+- [x] Hangouts list screen with live Supabase data and attendee counts
+- [x] Hangout creation — saves group, event, and memberships to Supabase in one flow
+- [x] Native date calendar picker + time scroll wheel in create flow
+- [x] Full event detail screen loading live from Supabase
+- [x] Attendees loaded with real usernames and RSVP status
+- [x] Food & drink items — add, claim, unclaim, remove (all Supabase)
+- [x] Misc supplies — add, claim, unclaim, remove (all Supabase)
+- [x] Suggestions tab — submit, accept, decline (all Supabase via `event_suggestions` table)
+- [x] Confirmed event state — persists to Supabase
+- [x] Edit mode — all fields editable, saves on "Save"
+- [x] Location & parking autocomplete (Google Places)
+- [x] Invite section — search by username or select from friends/recent groups
+- [x] Nudge frequency settings per group (stored in Supabase)
+- [x] Supabase Edge Function for daily push notification nudges
+- [x] Apple Calendar sync (reads device calendars, saves busy blocks to Supabase)
+- [x] CSV calendar import (parses Google Calendar export format)
 
 ---
 
@@ -163,65 +192,54 @@ providers/
 ### 🔴 Core / High Priority
 
 **Maps & Location Integration**
-Create a Map modal that pops up when a user clicks on an address. 
-
-**Dynamic Hangout Routing**
-Need to move from static hangouts to dynamic routes, persist events in database, and load per-event details dynamically.
-
-**Create a Group**
-Users need to be able to create a friend group, invite members, and have that group's availability aggregated on the schedule screen. The current `FRIENDS` mock array needs to become real Supabase data tied to the authenticated user.
-
-**Add friends system (backend wiring)**
-
-**Event creation and persistence (backend wiring)** // DONE?
-
-
-**Notifications & Edit Alerts**
-Push notifications for: (1) nudge reminders when it's been too long since a hangout, (2) real-time alerts whenever someone edits the event details page (changed location, claimed a food item, updated parking notes, etc.). Supabase real-time subscriptions are the right approach here.
-
-**Nudge Frequency Settings**
-Wire up the "Nudge Frequency" setting in the settings screen so users can customize how often they get reminded per friend/group. Store preference in Supabase per user.
+Create a map modal that pops up when a user taps an address on the event detail page. Should open the native Maps app (Apple Maps / Google Maps) to navigate to the location. Location and parking fields already store latitude/longitude from Google Places.
 
 **Best Night Algorithm (Real Group Availability)**
-The current "best night" detection (getBestNight in schedule.tsx) scores dates by subtracting points for each friend's hardcoded busyDays array — a mock approximation based on day-of-week patterns. This needs to be replaced with a real algorithm that queries actual per-user availability from Supabase (the dayMap data each group member submits), aggregates it across all group members, and surfaces the date where the most people are genuinely free. The algorithm should also account for partial availability (users who marked specific hours busy rather than the full day), weighting dates where conflicts are minor over dates where key people are completely unavailable.
+The current `getBestNight` in `schedule.tsx` uses a hardcoded `FRIENDS` mock array with day-of-week patterns. Replace with a real query against `user_availability` in Supabase — aggregate busy blocks across all group members and surface the date with the most people free. Account for partial availability (specific hours busy vs all day).
 
+**Friends System (Backend Wiring)**
+The `friends` table exists in Supabase but friend requests, acceptance, and the friends list UI are not fully wired. Users can currently appear in the "From Recent Groups" section of the invite flow but a proper add/accept friends flow is needed.
+
+**Notifications & Edit Alerts**
+Push notifications for real-time event edit alerts (someone changed the location, claimed a food item, updated parking notes, etc.) via Supabase real-time subscriptions. The nudge notification system is already built — this is specifically for event-level change alerts.
+
+**Real-Time Sync**
+Event detail data (food claims, attendee list, suggestions) currently loads once on open. Wire Supabase real-time subscriptions so changes made by other users appear instantly without requiring a manual refresh.
 
 ---
 
 ### 🟡 Important / Medium Priority
 
-**Calendar Sync**
-Allow users to sync external calendars so busy times auto-populate on the schedule screen. Priority order: Google Calendar (OAuth), Outlook, Canvas (iCal URL import). This eliminates manual availability entry for most users.
+**Google Calendar Integration**
+OAuth-based Google Calendar sync. Apple Calendar and CSV import are already done — Google Calendar requires a Google Cloud project with OAuth credentials and is the most-requested missing integration.
 
 **Contacts Sync**
-Let users find friends by syncing their contacts. Matches on phone number or email against existing Hangout users, with an invite flow for non-users.
+Let users find friends by syncing their contacts. Match on phone number or email against existing Hangout users, with an invite flow for non-users.
 
-**Customizable Event Emoji / Logo**
-Each event should have a customizable emoji or icon that appears next to the event title and on the event card/tab. Users can tap it to pick from an emoji picker.
+**Onboarding Flow**
+A first-launch walkthrough: create account → set username → add friends → create first hangout.
 
-
+**Hangout History / Past Events**
+A log of past hangouts per friend/group. Powers the nudge system's "last seen X days ago" with real data instead of mock values.
 
 ---
 
 ### 🟢 Nice to Have / Future
 
 **Spotify / Apple Music Integration**
-Connect to Spotify or Apple Music so users can attach a real collaborative playlist to the event. The music card would show album art, track count, and a deep link to open the playlist in the music app. Marked optional — manual playlist link works for now.
+Connect to Spotify or Apple Music to attach a real collaborative playlist to the event. The music card would show album art, track count, and a deep link to open the playlist in the music app.
 
 **Recurring Hangouts**
 Support for recurring events (e.g. monthly game nights) with carry-over details and attendance history.
 
-**Hangout History / Past Events**
-A log of past hangouts per friend/group with dates and activities. Powers the nudge system's "last seen X days ago" calculation with real data.
-
 **Availability Heatmap**
-On the monthly view, show a subtle color gradient across all dates based on how many friends are free — not just the single best night highlight, but a full picture at a glance.
+On the monthly view, show a subtle color gradient across all dates based on how many friends are free — a full picture at a glance rather than just the single best night highlight.
 
 **Dark / Light Mode Toggle**
 Currently hardcoded dark. Add a light mode variant and wire it to the Appearance setting.
 
-**Onboarding Flow**
-A first-launch walkthrough: create account → set username → add friends → create first group.
+**Customizable Event Emoji**
+Tap the event emoji in the create flow to open a full emoji picker rather than the fixed set of 8 options.
 
 ---
 
@@ -237,7 +255,35 @@ npx expo start --clear
 # Press 'i' for iOS simulator or scan QR with Expo Go on iPhone
 ```
 
-> SUPER DUPER IMPORTANT OR ELSE!!!!!!!! Keep `newArchEnabled: false` in `app.json`. Removing it will cause a black screen in Expo Go.
+> **IMPORTANT:** Keep `newArchEnabled: false` in `app.json`. Removing it will cause a black screen in Expo Go.
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```
+EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+```
+
+---
+
+## Database Tables
+
+| Table | Purpose |
+|---|---|
+| `users` | User profiles (id, username, full_name, avatar_url, bio) |
+| `friends` | Friend relationships (user_id, friend_id, status) |
+| `groups` | Hangout groups (id, name, description, owner_id) |
+| `group_members` | Group membership (group_id, user_id) |
+| `events` | Hangout events (id, title, start_time, group_id, location, parking, confirmed, etc.) |
+| `event_members` | Event attendance (event_id, user_id, role, rsvp_status) |
+| `event_items` | Food/misc items (event_id, user_id, category, item_name, status) |
+| `event_suggestions` | Suggestions (event_id, user_id, text, status) |
+| `user_nudge_preferences` | Per-group nudge frequency (user_id, group_id, frequency_days) |
+| `user_availability` | Calendar busy blocks (user_id, date_key, busy_hours, all_day) |
+| `push_tokens` | Expo push tokens for notifications (user_id, token) |
 
 ---
 
@@ -245,7 +291,7 @@ npx expo start --clear
 
 | Name |
 |---|
-| NJ |  |
+| NJ |
 | Dylan |
 | Lorenzo |
 
@@ -253,7 +299,7 @@ npx expo start --clear
 
 ## Design Reference
 
-The visual design follows the **Purple + Yellow Twilight** (FOR NOW). Core tokens:
+The visual design follows the **Purple + Yellow Twilight** theme. Core tokens:
 
 | Token | Value |
 |---|---|

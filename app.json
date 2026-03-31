@@ -40,6 +40,10 @@
         }
       ],
       "@react-native-community/datetimepicker"
+
+      ,["expo-calendar", {
+  "calendarPermission": "Allow Hangout to read your calendar to block busy times."
+}]
     ],
     "experiments": {
       "typedRoutes": true,
