@@ -2,8 +2,8 @@ import HangoutHeader from '@/components/HangoutHeader';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/themeprovider';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -35,6 +35,12 @@ interface RecentFriend {
   overdue: boolean;
 }
 
+interface UpcomingHangout {
+  id: string; emoji: string; name: string; date: string;
+  startTime: Date; attendees: string[];
+  daysSince: number; daysUntil: number; isFuture: boolean;
+}
+
 export default function HomeScreen() {
   const router        = useRouter();
   const { user }      = useAuth();
@@ -43,18 +49,20 @@ export default function HomeScreen() {
   const [username, setUsername]           = useState('');
   const [nudge, setNudge]                 = useState<NudgeData | null>(null);
   const [recentFriends, setRecentFriends] = useState<RecentFriend[]>([]);
+  const [upcomingHangouts, setUpcomingHangouts] = useState<UpcomingHangout[]>([]);
+  const [loadingHangouts, setLoadingHangouts] = useState(true);
   const [loading, setLoading]             = useState(true);
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 
-  useEffect(() => { if (!user) return; loadAll(); }, [user]);
+  useFocusEffect( useCallback(() => { if (!user?.id) return; loadAll(); }, [user?.id]));
 
   async function loadAll() {
     if (!user) return;
     setLoading(true);
-    try { await Promise.all([loadUsername(), loadNudge(), loadRecentFriends()]); }
+    try { await Promise.all([loadUsername(), loadNudge(), loadRecentFriends(), loadUpcomingHangouts()]); }
     catch (err) { console.error('Home load error:', err); }
     finally { setLoading(false); }
   }
@@ -91,6 +99,63 @@ export default function HomeScreen() {
     );
     setRecentFriends(results);
   }
+
+async function loadUpcomingHangouts() {
+  if (!user) return;
+
+  setLoadingHangouts(true);
+
+  try {
+    const { data: memberRows, error: memberError } = await supabase.from('event_members').select('event_id, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false });
+
+    if (memberError) throw memberError;
+
+    if (!memberRows || memberRows.length === 0) {
+      setUpcomingHangouts([]);
+      return;
+    }
+
+    const eventIds = memberRows.map((r: any) => r.event_id);
+    const nowIso = new Date().toISOString();
+
+    const { data: events, error: evError } = await supabase.from('events').select('id, title, description, start_time').in('id', eventIds).gte('start_time', nowIso).order('start_time', { ascending: true }).limit(3);
+
+    if (evError) throw evError;
+
+    const hangouts: UpcomingHangout[] = await Promise.all(
+      (events ?? []).map(async (ev: any) => {
+        const { data: attendeeRows } = await supabase.from('event_members').select('users(username)').eq('event_id', ev.id).neq('user_id', user.id).limit(4);
+
+        const attendees = (attendeeRows ?? [])
+          .map((r: any) => r.users?.username)
+          .filter(Boolean) as string[];
+
+        const startTime = new Date(ev.start_time);
+        const now = Date.now();
+        const eventTime = startTime.getTime();
+        const diffDays = Math.ceil((eventTime - now) / (1000 * 60 * 60 * 24));
+
+        return {
+          id: ev.id,
+          emoji: ev.description?.split(' ')[0] ?? '🎉',
+          name: ev.title,
+          date: startTime.toLocaleDateString('en-US', {month: 'short',day: 'numeric', year: 'numeric',}),
+          startTime,
+          attendees,
+          daysSince: 0,
+          daysUntil: Math.max(0, diffDays),
+          isFuture: true,
+        };
+      })
+    );
+
+    setUpcomingHangouts(hangouts);
+  } catch (err: any) {
+    console.error('Error loading upcoming hangouts:', err.message);
+  } finally {
+    setLoadingHangouts(false);
+  }
+}
 
   const greetingName = username || user?.email?.split('@')[0] || 'there';
 
@@ -158,6 +223,38 @@ export default function HomeScreen() {
           ))
         )}
 
+        {/* ── Upcoming Hangouts ── */}
+        <Text style={s.sectionLabel}>UPCOMING HANGOUTS</Text>
+
+        {loadingHangouts ? (
+          <ActivityIndicator color={theme.purpleLight} style={{ marginTop: 20 }} />
+        ) : upcomingHangouts.length === 0 ? (
+          <View style={s.emptyCard}>
+            <Text style={s.emptyEmoji}>👥</Text>
+            <Text style={s.emptyText}>No hangouts yet — invite some friends and start planning!</Text>
+          </View>
+        ) : (
+          upcomingHangouts.map(hangout => (
+            <TouchableOpacity key={hangout.id} style={s.friendRow} onPress={() =>   router.push({pathname: '/(tabs)/hangouts', params: { eventId: hangout.id }, } as any)}>
+              <Text style={{ fontSize: 28 }}>{hangout.emoji}</Text>
+
+              <View style={s.friendInfo}>
+                <Text style={s.friendName}>{hangout.name}</Text>
+                <Text style={s.friendActivity}>{hangout.date}
+                  {hangout.attendees.length > 0 ? ` • ${hangout.attendees.join(', ')}` : ''}
+                </Text>
+              </View>
+
+              <View style={[s.badge, s.badgeSoon]}>
+                <Text style={s.badgeNum}>{hangout.daysUntil}</Text>
+                <Text style={s.badgeLabel}>
+                  {hangout.daysUntil === 1 ? 'day left' : 'days left'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+
       </ScrollView>
     </View>
   );
@@ -211,7 +308,7 @@ function makeStyles(theme: ReturnType<typeof useTheme>['theme']) {
     friendName:     { fontSize: 14, fontWeight: '600', color: theme.text },
     friendActivity: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
 
-    badge:        { borderRadius: 10, padding: 8, alignItems: 'center', minWidth: 52, borderWidth: 1 },
+    badge:        { borderRadius: 10, padding: 8, alignItems: 'center', minWidth: 64, borderWidth: 1 },
     badgeSoon:    { backgroundColor: `${theme.gold}1F`, borderColor: `${theme.gold}40` },
     badgeOverdue: { backgroundColor: theme.redDim, borderColor: `${theme.red}4D` },
     badgeNum:     { fontSize: 16, fontWeight: '800', color: theme.text },

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/themeprovider';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
@@ -53,6 +54,7 @@ type ViewType = 'list' | 'create' | 'detail';
 type DetailTab = 'details' | 'suggestions';
 
 export default function HangoutsScreen() {
+  const params = useLocalSearchParams<{ eventId?: string }>();
   const { session } = useAuth();
   const { theme, isDark } = useTheme();
   const userId = session?.user?.id ?? '';
@@ -60,6 +62,13 @@ export default function HangoutsScreen() {
   const [summaries, setSummaries] = useState<HangoutSummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => { // If upcoming event clicked from homepage open that event.
+    if (typeof params.eventId === 'string' && params.eventId.length > 0) {
+      setSelectedId(params.eventId); 
+      setView('detail');
+      }
+  }, [params.eventId]);
 
   useEffect(() => { if (!userId) return; loadSummaries(); }, [userId]);
 
