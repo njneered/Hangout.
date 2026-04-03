@@ -496,6 +496,13 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
   if (loading) return (<View style={[ed.container, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color={theme.purpleLight} size="large" /><Text style={{ color: theme.textMuted, marginTop: 12 }}>Loading hangout...</Text></View>);
   if (!event) return null;
 
+  let editButton = null; // Only event creators can view and enable edit mode. 
+  if  (userId == event.creatorId) {
+    editButton = <TouchableOpacity style={[ed.editBtn, editMode && ed.editBtnActive]} onPress={() => { if (editMode) handleSaveEdits(); else setEditMode(true); }}>
+          {saving ? <ActivityIndicator size="small" color={theme.isDark ? '#1a1333' : '#fff'} /> : <Text style={[ed.editBtnText, editMode && ed.editBtnTextActive]}>{editMode ? 'Save' : '✏️'}</Text>}
+        </TouchableOpacity>
+  }
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={ed.tabBar}>
@@ -506,9 +513,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
             <Text style={[ed.tabText, activeTab === 'suggestions' && ed.tabTextActive]}>{isOpen ? '💬 Suggestions' : '✏️ Suggest Changes'}{pendingSuggestions > 0 ? ` (${pendingSuggestions})` : ''}</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[ed.editBtn, editMode && ed.editBtnActive]} onPress={() => { if (editMode) handleSaveEdits(); else setEditMode(true); }}>
-          {saving ? <ActivityIndicator size="small" color={theme.isDark ? '#1a1333' : '#fff'} /> : <Text style={[ed.editBtnText, editMode && ed.editBtnTextActive]}>{editMode ? 'Save' : '✏️'}</Text>}
-        </TouchableOpacity>
+          {editButton}
       </View>
 
       {activeTab === 'details' && (
