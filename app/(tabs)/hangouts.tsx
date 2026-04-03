@@ -46,7 +46,7 @@ interface EventDetail {
   date: string; time: string; confirmed: boolean; outfit: string; playlist: string;
   locationName: string; locationAddr: string; locationLat: number | null; locationLon: number | null;
   parkingName: string; parkingAddr: string; parkingNotes: string; activity: string; creatorId: string;
-  rawStartTime: string;
+  rawStartTime: Date;
 }
 
 type ViewType = 'list' | 'create' | 'detail';
@@ -491,7 +491,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
   const topSuggestion = suggestions.filter(s => s.status === 'pending').sort((a, b) => b.votes - a.votes)[0] ?? null;
   const daysUntil: number = (() => {
     if (!event) return 0;
-    const d = new Date(event.date); const t = new Date();
+    const d = new Date(event.rawStartTime); const t = new Date();
     t.setHours(0,0,0,0); d.setHours(0,0,0,0);
     return Math.max(0, Math.ceil((d.getTime() - t.getTime()) / (1000 * 60 * 60 * 24)));
   })();
