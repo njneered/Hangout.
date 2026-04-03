@@ -1,3 +1,4 @@
+import GoogleMap from '@/components/GoogleMap';
 import HangoutHeader from '@/components/HangoutHeader';
 import { InviteSection } from '@/components/InviteSection';
 import LocationAutocomplete from '@/components/LocationAutoComplete';
@@ -11,14 +12,13 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
+  KeyboardAvoidingView, Linking, Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 const GUTTER = 20;
@@ -319,6 +319,24 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
   const sg = makeSgStyles(theme);
 
   useEffect(() => { loadAll(); }, [eventId]);
+
+    function openDirections() {
+    if (!event?.locationLat || !event?.locationLon) return;
+
+    const lat = event.locationLat;
+    const lon = event.locationLon;
+    const label = encodeURIComponent(event.locationName || 'Event Location');
+
+    const url =
+      Platform.OS === 'ios'
+        ? `http://maps.apple.com/?daddr=${lat},${lon}&q=${label}`
+        : `google.navigation:q=${lat},${lon}`;
+
+    Linking.openURL(url).catch(() => {
+      const fallback = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+      Linking.openURL(fallback);
+    });
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -640,15 +658,50 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
             {miscItems.map(item => (<ItemRow key={item.id} item={item} userId={userId} theme={theme} onClaim={() => toggleClaim(item)} onRemove={editMode ? () => removeItem(item.id) : undefined} />))}
             <AddRow value={newMisc} onChange={setNewMisc} onAdd={() => addItem('misc', newMisc)} placeholder="Add a supply..." theme={theme} />
           </Section>
+
           <Section label="LOCATION" theme={theme}>
-            <View style={ed.locationCard}>
-              <Text style={ed.locationIcon}>📍</Text>
-              <View style={{ flex: 1 }}>
-                {editMode ? <LocationAutocomplete onSelect={({ name, address, latitude, longitude }) => setEvent(p => p ? { ...p, locationName: name, locationAddr: address, locationLat: latitude, locationLon: longitude } : p)} />
-                  : <><Text style={ed.locationName}>{event.locationName || 'No location set'}</Text>{event.locationAddr ? <Text style={ed.locationAddr}>{event.locationAddr}</Text> : null}</>}
+            {editMode? (
+              <View style={ed.locationCard}>
+                <Text style={ed.locationIcon}>📍</Text>
+                <View style={{ flex: 1 }}>
+                  <LocationAutocomplete
+                   onSelect={({ name, address, latitude, longitude }) =>
+                    setEvent(p => p ? { ...p, locationName: name, locationAddr: address, locationLat: latitude, locationLon: longitude } : p)} />
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={ed.locationCard}>
+                {event.locationLat != null && event.locationLon != null ? (
+                  <View style={ed.locationPreviewWrap}>
+                    <GoogleMap
+                      latitude={event.locationLat}
+                      longitude={event.locationLon}
+                      title={event.locationName || 'Event Location'}
+                      description={event.locationAddr || ''}
+                      compact
+                    />
+                  </View>
+                ) : (
+                  <Text style={ed.locationIcon}>📍</Text>
+                )}
+                  
+                  <View style={{ flex: 1 }}>
+                    <Text style={ed.locationName}>{event.locationName || 'No location set'} </Text>
+
+                    {event.locationAddr ? (
+                      <Text style={ed.locationAddr}>{event.locationAddr}</Text>
+                    ) : null}
+
+                    {event.locationLat != null && event.locationLon != null && (
+                      <TouchableOpacity style={ed.directionsBtn} onPress={openDirections}>
+                        <Text style={ed.directionsBtnText}>Open directions</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+              </View>
+              )}
           </Section>
+
           <Section label="PARKING" theme={theme}>
             <View style={ed.locationCard}>
               <Text style={ed.locationIcon}>🅿️</Text>
@@ -816,12 +869,17 @@ function makeEdStyles(theme: any) {
     musicSub: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
     inlineInput: { fontSize: 14, color: theme.text, borderBottomWidth: 1, borderBottomColor: theme.purple, paddingBottom: 2 },
     parkingNotesInput: { fontSize: 13, color: theme.text, backgroundColor: theme.card, borderRadius: 8, borderWidth: 1, borderColor: theme.cardBorder, padding: 10, lineHeight: 18, textAlignVertical: 'top' },
-    locationCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: theme.card, borderRadius: 14, borderWidth: 1, borderColor: theme.cardBorder, padding: 14 },
+    locationCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.card, borderRadius: 14, borderWidth: 1, borderColor: theme.cardBorder, padding: 14 },
     locationIcon: { fontSize: 20, marginTop: 2 },
     locationName: { fontSize: 14, fontWeight: '600', color: theme.text },
     locationAddr: { fontSize: 12, color: theme.textMuted, marginTop: 3, lineHeight: 17 },
     confirmBtn: { marginHorizontal: GUTTER, marginTop: 8, backgroundColor: theme.gold, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
     confirmBtnText: { fontSize: 16, fontWeight: '800', color: theme.isDark ? '#1a1333' : '#fff' },
+    locationPreviewWrap: {width: 72, height: 72, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.purpleDim, borderWidth: 1, borderColor: theme.cardBorder,},
+    locationPreviewPlaceholder: {flex: 1,alignItems: 'center',justifyContent: 'center',},
+    locationPreviewPlaceholderText: {fontSize: 24,},
+    directionsBtn: { alignSelf: 'flex-start', marginTop: 10, backgroundColor: theme.goldDim, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: `${theme.gold}66`,},
+    directionsBtnText: {fontSize: 12, fontWeight: '700', color: theme.gold,},
   });
 }
 
