@@ -614,7 +614,7 @@ export default function ScheduleScreen() {
                 <Text style={styles.bestBannerDate}>{bestNight.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.bestBannerBtn} onPress={() => router.push('/event' as any)}>
+            <TouchableOpacity style={styles.bestBannerBtn} onPress={() => router.push({pathname: 'hangouts', params: { date: bestNight.date.toISOString() }, } as any)}>
               <Text style={styles.bestBannerBtnText}>Lock it in →</Text>
             </TouchableOpacity>
           </View>

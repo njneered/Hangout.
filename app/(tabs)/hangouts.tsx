@@ -6,9 +6,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/themeprovider';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -55,6 +55,7 @@ type DetailTab = 'details' | 'suggestions';
 
 export default function HangoutsScreen() {
   const params = useLocalSearchParams<{ eventId?: string }>();
+  const { date } = useLocalSearchParams<{ date?: string }>();
   const { session } = useAuth();
   const { theme, isDark } = useTheme();
   const userId = session?.user?.id ?? '';
@@ -69,6 +70,13 @@ export default function HangoutsScreen() {
       setView('detail');
       }
   }, [params.eventId]);
+
+  useFocusEffect(
+    useCallback(() => {
+    if (date) {
+      setView('create');
+    }
+  }, [date]));
 
   useEffect(() => { if (!userId) return; loadSummaries(); }, [userId]);
 
@@ -194,18 +202,19 @@ function makeHlStyles(theme: any) {
 }
 
 function CreateHangoutForm({ userId, onBack, onCreate }: { userId: string; onBack: () => void; onCreate: (eventId: string) => void; }) {
+  const { date } = useLocalSearchParams<{ date?: string }>();
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const { theme } = useTheme();
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('🎉');
   const [activity, setActivity] = useState('');
-  const [eventDate, setEventDate] = useState<Date | null>(null);
+  const [eventDate, setEventDate] = useState<Date | null>(date ? new Date(date) : null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const EMOJI_OPTIONS = ['🎉','🎮','🍕','🎬','🏖️','🎤','🍻','🏀'];
   const isPlanned = activity.trim().length > 0;
   const cf = makeCfStyles(theme);
-
   function formatDate(d: Date | null) { if (!d) return 'Select a date'; return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }); }
   function formatTime(d: Date | null) { if (!d) return 'Select a time'; return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
   function handleDateChange(_e: any, sel?: Date) {
@@ -217,6 +226,13 @@ function CreateHangoutForm({ userId, onBack, onCreate }: { userId: string; onBac
     if (!sel) return;
     setEventDate(prev => { const base = prev ?? new Date(); const next = new Date(base); next.setHours(sel.getHours(), sel.getMinutes(), 0, 0); return next; });
   }
+
+    useEffect(() => {
+    if (date) {
+      setShowCreateForm(true);
+    }
+  }, [date]);
+    
 
   async function handleCreate() {
     if (!name.trim() || !userId || !eventDate) return;
