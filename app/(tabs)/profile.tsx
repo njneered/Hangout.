@@ -1,19 +1,19 @@
-import HangoutHeader from '@/components/HangoutHeader';
 import { FriendsModal } from '@/components/FriendsModal';
+import HangoutHeader from '@/components/HangoutHeader';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/themeprovider';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export function avatarColor(str: string) {
@@ -192,7 +192,7 @@ export default function ProfileScreen() {
         <View style={s.statsRow}>
           <TouchableOpacity style={s.statBlock} onPress={() => setFriendsVisible(true)} activeOpacity={0.7}>
             <Text style={s.statNum}>{friendCount}</Text>
-            <Text style={[s.statLabel, { color: theme.purpleLight }]}>Friends ›</Text>
+            <Text style={[s.statLabel, { color: theme.gold }]}>Friends ›</Text>
           </TouchableOpacity>
           <View style={s.statDivider} />
           <View style={s.statBlock}>

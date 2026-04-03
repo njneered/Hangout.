@@ -213,12 +213,15 @@ function CreateHangoutForm({ userId, onBack, onCreate }: { userId: string; onBac
     if (!name.trim() || !userId || !eventDate) return;
     setSaving(true);
     try {
-      const { data: groupData, error: gErr } = await supabase.from('groups').insert({ name: name.trim(), description: `${emoji} ${name.trim()}`, owner_id: userId }).select('id').single();
-      if (gErr) throw gErr;
-      await supabase.from('group_members').insert({ group_id: groupData.id, user_id: userId });
-      const { data: eventData, error: eErr } = await supabase.from('events').insert({ title: name.trim(), creator_id: userId, group_id: groupData.id, start_time: eventDate.toISOString(), description: `${emoji} ${name.trim()}`, is_group_event: true }).select('id').single();
+      
+      const { data: eventData, error: eErr } = await supabase.from('events').insert({ title: name.trim(), creator_id: userId, start_time: eventDate.toISOString(), description: `${emoji} ${name.trim()}`, is_group_event: true }).select('id').single();
       if (eErr) throw eErr;
+      const { data: groupData, error: gErr } = await supabase.from('groups').insert({ name: name.trim(), description: `${emoji} ${name.trim()}`, owner_id: userId, event_id: eventData.id}).select('id').single();
+      if (gErr) throw gErr;
+      await supabase.from('events').update({ group_id: groupData.id}).eq('id', eventData.id);
+      await supabase.from('group_members').insert({ group_id: groupData.id, user_id: userId });
       await supabase.from('event_members').insert({ event_id: eventData.id, user_id: userId, role: 'creator', rsvp_status: 'accepted' });
+      
       onCreate(eventData.id);
     } catch (err: any) {
       Alert.alert('Error creating hangout', err.message ?? 'Unknown error');
