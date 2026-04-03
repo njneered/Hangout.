@@ -22,12 +22,6 @@ interface DayData {
   busyHours?: Set<number>;
 }
 
-const FRIENDS = [
-  { name: 'Bryan', color: '#facc15', busyDays: [1, 3, 6] },
-  { name: 'Mia',   color: '#c4b5fd', busyDays: [0, 4, 5] },
-  { name: 'Jake',  color: '#7ec8e3', busyDays: [2, 5] },
-];
-
 const HOURS = [
   '12 AM', '1 AM', '2 AM', '3 AM', '4 AM', '5 AM',
   '6 AM', '7 AM', '8 AM', '9 AM', '10 AM', '11 AM',
@@ -65,6 +59,8 @@ export default function ScheduleScreen() {
   const [year, setYear]           = useState(today.getFullYear());
   const [weekOffset, setWeekOffset] = useState(0);
   const [dayMap, setDayMap]       = useState<Record<string, DayData>>({});
+  const [friendAvailability, setFriendAvailability] = useState<Record<string, Record<string, DayData>>>({});
+  const [friendProfiles, setFriendProfiles] = useState<Record<string, { username: string; color: string }>>({});
   const [paintMode, setPaintMode] = useState(false);
   const [selectedKey, setSelectedKey]   = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -100,6 +96,76 @@ export default function ScheduleScreen() {
     }
 
     setDayMap(next);
+  }
+
+  async function loadFriendAvailability() {
+    if (!user?.id) return;
+
+    const { data: friendRows, error: friendError } = await supabase
+      .from('friends')
+      .select('user_id, friend_id, status')
+      .eq('status', 'accepted')
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+
+    if (friendError) throw friendError;
+
+    const friendIds = (friendRows ?? []).map((row: any) =>
+      row.user_id === user.id ? row.friend_id : row.user_id
+    );
+
+    if (friendIds.length === 0) {
+      setFriendAvailability({});
+      setFriendProfiles({});
+      return;
+    }
+
+    const [{ data: availabilityRows, error: availabilityError }, { data: userRows, error: userError }] =
+      await Promise.all([
+        supabase
+          .from('user_availability')
+          .select('user_id, date_key, busy_hours, all_day')
+          .in('user_id', friendIds),
+
+        supabase
+          .from('users')
+          .select('id, username')
+          .in('id', friendIds),
+      ]);
+
+    if (availabilityError) throw availabilityError;
+    if (userError) throw userError;
+
+    const nextAvailability: Record<string, Record<string, DayData>> = {};
+
+    for (const row of availabilityRows ?? []) {
+      if (!nextAvailability[row.user_id]) nextAvailability[row.user_id] = {};
+
+      const hours = new Set<number>(
+        (row.busy_hours ?? []).map((n: any) => Number(n))
+      );
+
+      nextAvailability[row.user_id][row.date_key] = {
+        state: row.all_day
+          ? 'unavailable'
+          : hours.size > 0
+          ? 'partial'
+          : 'free',
+        busyHours: hours,
+      };
+    }
+
+    const palette = ['#facc15', '#c4b5fd', '#7ec8e3', '#fb7185', '#34d399', '#f97316'];
+
+    const nextProfiles: Record<string, { username: string; color: string }> = {};
+    (userRows ?? []).forEach((row: any, index: number) => {
+      nextProfiles[row.id] = {
+        username: row.username,
+        color: palette[index % palette.length],
+      };
+    });
+
+    setFriendAvailability(nextAvailability);
+    setFriendProfiles(nextProfiles);
   }
 
   async function saveAvailabilityDay(key: string, data?: DayData) {
@@ -144,9 +210,13 @@ export default function ScheduleScreen() {
 
   useEffect(() => {
     if (!user?.id) return;
-    loadAvailability().catch(err =>
-      console.error('Load error:', err.message)
-    );
+
+    Promise.all([
+      loadAvailability(),
+      loadFriendAvailability(),
+    ]).catch(err => {
+      console.error('Load error:', err.message);
+    });
   }, [user?.id]);
 
   const openPanel = (key: string, date: Date) => {
@@ -246,28 +316,49 @@ export default function ScheduleScreen() {
     onPanResponderTerminationRequest: () => false,
   })).current;
 
-  const getBestNight = useCallback((): { key: string; date: Date } | null => {
-    if (Object.keys(dayMap).length === 0) return null;
-    let best: { key: string; date: Date; score: number } | null = null;
-    for (let d = 1; d <= getDaysInMonth(year, month); d++) {
-      const key = dateKey(year, month, d); const data = dayMap[key];
-      if (data?.state === 'unavailable') continue;
-      const dayOfWeek = new Date(year, month, d).getDay();
-      let score = FRIENDS.length;
-      FRIENDS.forEach(f => { if (f.busyDays.includes(dayOfWeek)) score -= 1; });
-      if (data?.state === 'partial') score -= 0.5;
-      if (!best || score > best.score) best = { key, date: new Date(year, month, d), score };
-    }
-    return best ? { key: best.key, date: best.date } : null;
-  }, [dayMap, year, month]);
-
-  const bestNight = getBestNight();
-
   const isPastDate = (date: Date) => {
     const d = new Date(date); d.setHours(0, 0, 0, 0);
     const t = new Date(today); t.setHours(0, 0, 0, 0);
     return d < t;
   };
+
+  const getBestNight = useCallback((): { key: string; date: Date } | null => {
+    let best: { key: string; date: Date; score: number } | null = null;
+
+    const friendIds = Object.keys(friendProfiles);
+
+    for (let d = 1; d <= getDaysInMonth(year, month); d++) {
+      const key = dateKey(year, month, d);
+      const candidateDate = new Date(year, month, d);
+
+      if (isPastDate(candidateDate)) continue;
+
+      const myDay = dayMap[key];
+      let score = 0;
+
+      if (!myDay || myDay.state === 'free') score += 1;
+      else if (myDay.state === 'partial') score += 0.5;
+
+      for (const friendId of friendIds) {
+        const fDay = friendAvailability[friendId]?.[key];
+
+        if (!fDay || fDay.state === 'free') score += 1;
+        else if (fDay.state === 'partial') score += 0.5;
+      }
+
+      if (!best || score > best.score) {
+        best = {
+          key,
+          date: candidateDate,
+          score,
+        };
+      }
+    }
+
+    return best ? { key: best.key, date: best.date } : null;
+  }, [dayMap, friendAvailability, friendProfiles, year, month]);
+
+  const bestNight = getBestNight();
 
   const handleDayTap = async (key: string, date: Date) => {
     if (isPastDate(date)) return;
@@ -471,11 +562,20 @@ export default function ScheduleScreen() {
                 const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
                 const data = dayMap[key];
                 const isBusy = data?.state === 'unavailable' || (data?.state === 'partial' && data.busyHours?.has(hi));
-                const friendPips = FRIENDS.filter(f => f.busyDays.includes(di));
+                const availableFriendIds = Object.keys(friendProfiles).filter(friendId => {
+                  const fDay = friendAvailability[friendId]?.[key];
+                  if (!fDay || fDay.state === 'free') return true;
+                  if (fDay.state === 'partial') return !fDay.busyHours?.has(hi);
+                  return false;
+                });
                 return (
                   <View key={di} style={[styles.weekCell, isBusy && styles.weekCellBusy]}>
-                    {!isBusy && friendPips.length > 0 && (
-                      <View style={styles.pipRow}>{friendPips.map(f => <View key={f.name} style={[styles.pip, { backgroundColor: f.color }]} />)}</View>
+                    {!isBusy && availableFriendIds.length > 0 && (
+                      <View style={styles.pipRow}>
+                        {availableFriendIds.map(friendId => (
+                      <View key={friendId} style={[styles.pip, { backgroundColor: friendProfiles[friendId]?.color ?? theme.gold }]} />
+                        ))}
+                      </View>
                     )}
                   </View>
                 );
@@ -485,10 +585,10 @@ export default function ScheduleScreen() {
         </View>
       </ScrollView>
       <View style={styles.weekLegend}>
-        {FRIENDS.map(f => (
-          <View key={f.name} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: f.color + '55', borderColor: f.color, borderWidth: 1 }]} />
-            <Text style={styles.legendText}>{f.name}</Text>
+        {Object.entries(friendProfiles).map(([friendId, friend]) => (
+          <View key={friendId} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: friend.color + '55', borderColor: friend.color, borderWidth: 1 }]} />
+            <Text style={styles.legendText}>{friend.username}</Text>
           </View>
         ))}
         <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: theme.redDim, borderColor: theme.red, borderWidth: 1 }]} /><Text style={styles.legendText}>You</Text></View>
