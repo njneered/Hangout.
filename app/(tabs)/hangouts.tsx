@@ -514,7 +514,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
           </TouchableOpacity>
         </View>
           {editButton}
-      </View>
+        </View>
 
       {activeTab === 'details' && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={ed.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -534,7 +534,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
               </View>
             </View>
           )}
-          <View style={ed.header}>
+          <View style={[ed.header, {marginBottom: 16}]}>
             <Text style={ed.emoji}>{event.emoji}</Text>
             <View style={{ flex: 1 }}>
               {editMode
