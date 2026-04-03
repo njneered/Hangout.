@@ -224,7 +224,7 @@ async function loadUpcomingHangouts() {
         )}
 
         {/* ── Upcoming Hangouts ── */}
-        <Text style={s.sectionLabel}>UPCOMING HANGOUTS</Text>
+        <Text style={[s.sectionLabel, {marginTop: 15}]}>UPCOMING HANGOUTS</Text>
 
         {loadingHangouts ? (
           <ActivityIndicator color={theme.purpleLight} style={{ marginTop: 20 }} />
