@@ -322,7 +322,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
 
   async function loadEvent() {
     const { data, error } = await supabase.from('events')
-      .select('id, title, description, start_time, group_id, confirmed, outfit, playlist, location_name, location_address, latitude, longitude, parking_name, parking_addr, parking_info, creator_id')
+      .select('id, title, activity, description, start_time, group_id, confirmed, outfit, playlist, location_name, location_address, latitude, longitude, parking_name, parking_addr, parking_info, creator_id')
       .eq('id', eventId).single();
     if (error) throw error;
     if (data.start_time) setEditDate(new Date(data.start_time));
@@ -335,7 +335,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
       locationName: data.location_name ?? '', locationAddr: data.location_address ?? '',
       locationLat: data.latitude ?? null, locationLon: data.longitude ?? null,
       parkingName: data.parking_name ?? '', parkingAddr: data.parking_addr ?? '',
-      parkingNotes: data.parking_info ?? '', activity: '', creatorId: data.creator_id ?? '',
+      parkingNotes: data.parking_info ?? '', activity: data.activity ?? '', creatorId: data.creator_id ?? '',
       rawStartTime: data.start_time ?? '',
     });
   }
@@ -378,7 +378,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
         location_name: event.locationName, location_address: event.locationAddr,
         latitude: event.locationLat, longitude: event.locationLon,
         parking_name: event.parkingName, parking_addr: event.parkingAddr,
-        parking_info: event.parkingNotes,
+        parking_info: event.parkingNotes, activity: event.activity,
         start_time: editDate ? editDate.toISOString() : undefined,
       }).eq('id', eventId);
       if (error) throw error;
@@ -475,8 +475,14 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
   async function handlePromote(sugg: Suggestion) {
     try {
       await updateSuggestionStatus(sugg.id, 'accepted');
+      await supabase
+        .from('events')
+        .update({activity: sugg.text})
+        .eq('id', event?.id);
+
       setEvent(prev => prev ? { ...prev, activity: sugg.text } : prev);
       Alert.alert('Activity set! 🎯', `"${sugg.text}" is now the plan.`);
+      handleConfirm();
     } catch (err: any) { Alert.alert('Error promoting suggestion', err.message ?? 'Unknown error'); }
   }
 
@@ -497,7 +503,7 @@ function HangoutDetail({ eventId, userId, onBack }: { eventId: string; userId: s
   if (!event) return null;
 
   let editButton = null; // Only event creators can view and enable edit mode. 
-  if  (userId == event.creatorId) {
+  if  (isHost) {
     editButton = <TouchableOpacity style={[ed.editBtn, editMode && ed.editBtnActive]} onPress={() => { if (editMode) handleSaveEdits(); else setEditMode(true); }}>
           {saving ? <ActivityIndicator size="small" color={theme.isDark ? '#1a1333' : '#fff'} /> : <Text style={[ed.editBtnText, editMode && ed.editBtnTextActive]}>{editMode ? 'Save' : '✏️'}</Text>}
         </TouchableOpacity>
