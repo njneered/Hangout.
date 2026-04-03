@@ -1,4 +1,5 @@
 import HangoutHeader from '@/components/HangoutHeader';
+import { FriendsModal } from '@/components/FriendsModal';
 import { FRIENDS, NUDGE } from '@/constants/mockData';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
