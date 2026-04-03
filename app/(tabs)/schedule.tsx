@@ -1,13 +1,13 @@
 import HangoutHeader from '@/components/HangoutHeader';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/themeprovider';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useRef, useState } from 'react';
-import { PanResponder } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
-  ScrollView,
+  Dimensions, PanResponder, ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -45,7 +45,7 @@ const CELL_SIZE   = Math.floor((SCREEN_WIDTH - GUTTER * 2 - 12) / 7);
 
 function getDaysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate(); }
 function getFirstDayOfMonth(year: number, month: number) { return new Date(year, month, 1).getDay(); }
-function dateKey(year: number, month: number, day: number) { return `${year}-${month}-${day}`; }
+function dateKey(year: number, month: number, day: number) { return `${year}-${month + 1}-${day}`; }
 function getWeekDates(weekOffset: number): Date[] {
   const today = new Date();
   const startOfWeek = new Date(today);
@@ -53,7 +53,9 @@ function getWeekDates(weekOffset: number): Date[] {
   return Array.from({ length: 7 }, (_, i) => { const d = new Date(startOfWeek); d.setDate(startOfWeek.getDate() + i); return d; });
 }
 
+
 export default function ScheduleScreen() {
+
   const today  = new Date();
   const router = useRouter();
   const { theme, isDark } = useTheme();
@@ -68,6 +70,84 @@ export default function ScheduleScreen() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const panelAnim = useRef(new Animated.Value(0)).current;
   const selectedKeyRef = useRef<string | null>(null);
+  const { user } = useAuth();
+
+  async function loadAvailability() {
+    if (!user?.id) return;
+
+    const { data, error } = await supabase
+      .from('user_availability')
+      .select('date_key, busy_hours, all_day')
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+
+    const next: Record<string, DayData> = {};
+
+    for (const row of data ?? []) {
+      const hours = new Set<number>(
+        (row.busy_hours ?? []).map((n: any) => Number(n))
+      );
+
+      next[row.date_key] = {
+        state: row.all_day
+          ? 'unavailable'
+          : hours.size > 0
+          ? 'partial'
+          : 'free',
+        busyHours: hours,
+      };
+    }
+
+    setDayMap(next);
+  }
+
+  async function saveAvailabilityDay(key: string, data?: DayData) {
+    if (!user?.id) return;
+
+    const hours = Array.from(data?.busyHours ?? []).sort((a, b) => a - b);
+
+    const shouldDelete =
+      !data ||
+      data.state === 'free' ||
+      (data.state === 'partial' && hours.length === 0);
+
+    if (shouldDelete) {
+      const { error } = await supabase
+        .from('user_availability')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('date_key', key);
+
+      if (error) throw error;
+      return;
+    }
+
+    const payload = {
+      user_id: user.id,
+      date_key: key,
+      busy_hours: data.state === 'unavailable' ? [] : hours,
+      all_day: data.state === 'unavailable',
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('user_availability')
+      .upsert(payload, { onConflict: 'user_id,date_key' });
+
+    if (error) throw error;
+  }
+
+  useEffect(() => {
+  dayMapRef.current = dayMap;
+  }, [dayMap]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    loadAvailability().catch(err =>
+      console.error('Load error:', err.message)
+    );
+  }, [user?.id]);
 
   const openPanel = (key: string, date: Date) => {
     selectedKeyRef.current = key;
@@ -91,11 +171,20 @@ export default function ScheduleScreen() {
   const paintModeRef   = useRef(false);
   const weekDatesRef   = useRef<Date[]>(getWeekDates(0));
   const dayMapRef      = useRef<Record<string, DayData>>({});
+  const touchedKeysRef = useRef<Set<string>>(new Set());
 
-  const handleSetPaintMode = (val: boolean) => {
-    paintModeRef.current = val; setPaintMode(val);
+  const handleSetPaintMode = async (val: boolean) => {
+    if (!val) {
+      await flushTouchedKeys();
+    }
+
+    paintModeRef.current = val;
+    setPaintMode(val);
+
     if (val && weekGridViewRef.current) {
-      weekGridViewRef.current.measure((_x, _y, _w, _h, pageX, pageY) => { weekGridOrigin.current = { x: pageX, y: pageY }; });
+      weekGridViewRef.current.measure((_x, _y, _w, _h, pageX, pageY) => {
+        weekGridOrigin.current = { x: pageX, y: pageY };
+      });
     }
   };
 
@@ -113,9 +202,29 @@ export default function ScheduleScreen() {
     return { key: dateKey(d.getFullYear(), d.getMonth(), d.getDate()), hi: rowIndex };
   };
 
+    async function flushTouchedKeys() {
+    const keys = Array.from(touchedKeysRef.current);
+    console.log('keys before clear', keys);
+    console.log('dayMapRef snapshot', dayMapRef.current);
+
+    touchedKeysRef.current.clear();
+
+    for (const key of keys) {
+      const data = dayMapRef.current[key];
+      try {
+        await saveAvailabilityDay(key, data);
+      } catch (err: any) {
+        console.error('Batch save error:', err.message);
+      }
+    }
+  }
+
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => paintModeRef.current,
     onMoveShouldSetPanResponder:  () => paintModeRef.current,
+    onStartShouldSetPanResponderCapture: () => paintModeRef.current,
+    onMoveShouldSetPanResponderCapture: () => paintModeRef.current,
+
     onPanResponderGrant: (e) => {
       const hit = getHitCell(e.nativeEvent.pageX, e.nativeEvent.pageY);
       if (!hit) return;
@@ -124,6 +233,17 @@ export default function ScheduleScreen() {
       paintingBusy.current = !isBusy; paintCell(hit.key, hit.hi, paintingBusy.current);
     },
     onPanResponderMove: (e) => { const hit = getHitCell(e.nativeEvent.pageX, e.nativeEvent.pageY); if (hit) paintCell(hit.key, hit.hi, paintingBusy.current); },
+    onPanResponderRelease: async () => {
+      //console.log('release');
+      await flushTouchedKeys();
+    },
+
+    onPanResponderTerminate: async () => {
+      //console.log('terminate');
+      await flushTouchedKeys();
+    },
+
+    onPanResponderTerminationRequest: () => false,
   })).current;
 
   const getBestNight = useCallback((): { key: string; date: Date } | null => {
@@ -149,19 +269,66 @@ export default function ScheduleScreen() {
     return d < t;
   };
 
-  const handleDayTap = (key: string, date: Date) => {
+  const handleDayTap = async (key: string, date: Date) => {
     if (isPastDate(date)) return;
-    if (selectedKey === key) { setDayMap(prev => { const { [key]: _, ...rest } = prev; return rest; }); closePanel(); }
-    else { setDayMap(prev => ({ ...prev, [key]: { state: 'unavailable', busyHours: new Set<number>() } })); openPanel(key, date); }
+
+    if (selectedKey === key) {
+      setDayMap(prev => {
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      });
+
+      try {
+        await saveAvailabilityDay(key, undefined);
+      } catch (err: any) {
+        console.error('Save error:', err.message);
+      }
+
+      closePanel();
+    } else {
+      const nextData: DayData = {
+        state: 'unavailable',
+        busyHours: new Set<number>(),
+      };
+
+      setDayMap(prev => ({
+        ...prev,
+        [key]: nextData,
+      }));
+
+      try {
+        await saveAvailabilityDay(key, nextData);
+      } catch (err: any) {
+        console.error('Save error:', err.message);
+      }
+
+      openPanel(key, date);
+    }
   };
 
   const paintCell = useCallback((key: string, hourIdx: number, toBusy: boolean) => {
     setDayMap(prev => {
-      const current = prev[key] || { state: 'partial' as DayState, busyHours: new Set<number>() };
+      const current = prev[key] || {
+        state: 'partial' as DayState,
+        busyHours: new Set<number>(),
+      };
+
       const hours = new Set(current.busyHours || []);
-      if (toBusy) hours.add(hourIdx); else hours.delete(hourIdx);
-      const next = { ...prev, [key]: { state: (hours.size > 0 ? 'partial' : 'free') as DayState, busyHours: hours } };
-      dayMapRef.current = next; return next;
+
+      if (toBusy) hours.add(hourIdx);
+      else hours.delete(hourIdx);
+
+      const nextDay: DayData = {
+        state: hours.size > 0 ? 'partial' : 'unavailable',
+        busyHours: hours,
+      };
+
+      const next = { ...prev, [key]: nextDay };
+      dayMapRef.current = next;
+
+      touchedKeysRef.current.add(key);
+
+      return next;
     });
   }, []);
 
@@ -215,7 +382,8 @@ export default function ScheduleScreen() {
                 <Text style={styles.hoursPanelTitle}>{selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
                 <Text style={styles.hoursPanelSub}>Tap hours you're busy</Text>
               </View>
-              <TouchableOpacity style={styles.hoursPanelClear} onPress={() => { setDayMap(prev => { const { [selectedKey]: _, ...rest } = prev; return rest; }); closePanel(); }}>
+              <TouchableOpacity style={styles.hoursPanelClear} onPress={() => { setDayMap(prev => { const { [selectedKey]: _, ...rest } = prev; return rest; });   
+                saveAvailabilityDay(selectedKey, undefined).catch(err => console.error('Save error:', err.message)); closePanel(); }}>
                 <Text style={styles.hoursPanelClearText}>Clear</Text>
               </TouchableOpacity>
             </View>
@@ -230,11 +398,27 @@ export default function ScheduleScreen() {
                         onPress={() => {
                           if (!selectedKey) return;
                           setDayMap(prev => {
-                            const current = prev[selectedKey] || { state: 'unavailable' as DayState, busyHours: new Set<number>() };
+                            const current = prev[selectedKey] || {
+                              state: 'unavailable' as DayState,
+                              busyHours: new Set<number>(),
+                            };
+
                             const isAllDay = current.state === 'unavailable' && (current.busyHours?.size ?? 0) === 0;
-                            const hours = isAllDay ? new Set(HOURS.map((_, i) => i)) : new Set(current.busyHours || []);
-                            if (hours.has(hi)) hours.delete(hi); else hours.add(hi);
-                            return { ...prev, [selectedKey]: { state: hours.size > 0 ? 'partial' : 'unavailable', busyHours: hours } };
+
+                            const hours = isAllDay
+                              ? new Set(HOURS.map((_, i) => i))
+                              : new Set(current.busyHours || []);
+
+                            if (hours.has(hi)) hours.delete(hi);
+                            else hours.add(hi);
+
+                            const nextDay: DayData = { state: hours.size > 0 ? 'partial' : 'unavailable', busyHours: hours, };
+
+                            const next = {...prev, [selectedKey]: nextDay,};
+
+                            saveAvailabilityDay(selectedKey, nextDay).catch(err => console.error('Save error:', err.message));
+
+                            return next;
                           });
                         }} activeOpacity={0.75}>
                         <Text style={[styles.hourCellText, isBusy && styles.hourCellTextBusy]}>{hour}</Text>
@@ -316,7 +500,7 @@ export default function ScheduleScreen() {
     <View style={styles.container}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <HangoutHeader />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
+      <ScrollView style={styles.scroll} scrollEnabled={!(paintMode && viewMode === 'weekly')} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Find a time 🗓</Text>
           <Text style={styles.headerSub}>{viewMode === 'monthly' ? 'Tap a date · then tap your busy hours' : 'Tap to enter drag mode · drag to paint busy hours'}</Text>
