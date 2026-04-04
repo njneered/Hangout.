@@ -78,6 +78,13 @@ export default function HangoutsScreen() {
     }
   }, [date]));
 
+  useFocusEffect( // Update to accept
+    useCallback(() => {
+      if (!userId) return;
+      loadSummaries();
+    }, [userId])
+  );
+
   useEffect(() => { if (!userId) return; loadSummaries(); }, [userId]);
 
   async function loadSummaries() {

@@ -14,8 +14,8 @@
  *   Game Night, 04/15/2026, 7:00 PM, 04/15/2026, 9:00 PM, False
  */
 
-import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 import * as Calendar from 'expo-calendar';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
@@ -59,8 +59,18 @@ type BusyBlock = {
 
 // ── Helpers ───────────────────────────────────────────────────
 
+function normalizeCalendarDate(value: string | Date, allDay: boolean): Date {
+  if (!allDay) return new Date(value);
+
+  if (typeof value === 'string') {
+    return new Date(value.split('T')[0]);
+  }
+
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
 function dateKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
 function hoursInRange(start: Date, end: Date): number[] {
@@ -196,6 +206,7 @@ export default function CalendarSyncScreen() {
       // Get all calendars
       const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
       const calendarIds = calendars.map(c => c.id);
+      
 
       // Fetch events for next 60 days
       const now = new Date();
@@ -208,10 +219,10 @@ export default function CalendarSyncScreen() {
       const blockMap: Record<string, BusyBlock> = {};
 
       for (const event of events) {
-        const start   = new Date(event.startDate);
-        const end     = new Date(event.endDate);
-        const key     = dateKey(start);
         const allDay  = event.allDay ?? false;
+        const start = normalizeCalendarDate(event.startDate, allDay);
+        const end = normalizeCalendarDate(event.endDate, allDay);
+        const key     = dateKey(start);
 
         if (!blockMap[key]) {
           blockMap[key] = { date: key, hours: [], allDay: false };
@@ -227,6 +238,10 @@ export default function CalendarSyncScreen() {
           ];
         }
       }
+      //console.log('calendarIds:', calendarIds);
+      //console.log('events found:', events.length);
+      //console.log('raw events:', events);
+      //console.log('blocks built:', Object.values(blockMap));
 
       const blocks = Object.values(blockMap);
       await saveBusyBlocks(userId, blocks);
@@ -244,6 +259,8 @@ export default function CalendarSyncScreen() {
     } finally {
       setSyncingApple(false);
     }
+
+    
   }
 
   // ── CSV import ──

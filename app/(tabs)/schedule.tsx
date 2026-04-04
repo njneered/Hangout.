@@ -2,7 +2,7 @@ import HangoutHeader from '@/components/HangoutHeader';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/themeprovider';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -212,16 +212,18 @@ export default function ScheduleScreen() {
   dayMapRef.current = dayMap;
   }, [dayMap]);
 
-  useEffect(() => {
-    if (!user?.id) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
 
-    Promise.all([
-      loadAvailability(),
-      loadFriendAvailability(),
-    ]).catch(err => {
-      console.error('Load error:', err.message);
-    });
-  }, [user?.id]);
+      Promise.all([
+        loadAvailability(),
+        loadFriendAvailability(),
+      ]).catch(err => {
+        console.error('Load error:', err.message);
+      });
+    }, [user?.id])
+  );
 
   const openPanel = (key: string, date: Date) => {
     selectedKeyRef.current = key;
