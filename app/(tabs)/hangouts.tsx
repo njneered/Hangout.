@@ -71,7 +71,7 @@ export default function HangoutsScreen() {
       }
   }, [params.eventId]);
 
-  useFocusEffect(
+  useFocusEffect( // If best night lock it in date is selected, open event create
     useCallback(() => {
     if (date) {
       setView('create');

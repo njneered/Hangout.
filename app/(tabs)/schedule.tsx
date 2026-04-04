@@ -165,7 +165,11 @@ export default function ScheduleScreen() {
     });
 
     setFriendAvailability(nextAvailability);
+    //('friendAvailability ids', Object.keys(nextAvailability));
+    //console.log('friendAvailability RAW rows:', availabilityRows);
+    //console.log('friendAvailability MAP:', nextAvailability);
     setFriendProfiles(nextProfiles);
+    //console.log('friendProfiles ids', Object.keys(nextProfiles));
   }
 
   async function saveAvailabilityDay(key: string, data?: DayData) {
@@ -274,8 +278,8 @@ export default function ScheduleScreen() {
 
     async function flushTouchedKeys() {
     const keys = Array.from(touchedKeysRef.current);
-    console.log('keys before clear', keys);
-    console.log('dayMapRef snapshot', dayMapRef.current);
+    //console.log('keys before clear', keys);
+    //console.log('dayMapRef snapshot', dayMapRef.current);
 
     touchedKeysRef.current.clear();
 
@@ -341,6 +345,8 @@ export default function ScheduleScreen() {
 
       for (const friendId of friendIds) {
         const fDay = friendAvailability[friendId]?.[key];
+
+        //console.log('lookup', {friendId,key,fDay,});
 
         if (!fDay || fDay.state === 'free') score += 1;
         else if (fDay.state === 'partial') score += 0.5;
@@ -563,20 +569,29 @@ export default function ScheduleScreen() {
                 const data = dayMap[key];
                 const isBusy = data?.state === 'unavailable' || (data?.state === 'partial' && data.busyHours?.has(hi));
                 const availableFriendIds = Object.keys(friendProfiles).filter(friendId => {
-                  const fDay = friendAvailability[friendId]?.[key];
-                  if (!fDay || fDay.state === 'free') return true;
-                  if (fDay.state === 'partial') return !fDay.busyHours?.has(hi);
-                  return false;
-                });
+                const fDay = friendAvailability[friendId]?.[key];
+
+                if (!fDay) return true; // no data -> don't assume availability
+                if (fDay.state === 'free') return true;
+                if (fDay.state === 'partial') return !(fDay.busyHours?.has(hi) ?? false);
+
+                return false; // unavailable
+              });
                 return (
                   <View key={di} style={[styles.weekCell, isBusy && styles.weekCellBusy]}>
-                    {!isBusy && availableFriendIds.length > 0 && (
-                      <View style={styles.pipRow}>
-                        {availableFriendIds.map(friendId => (
-                      <View key={friendId} style={[styles.pip, { backgroundColor: friendProfiles[friendId]?.color ?? theme.gold }]} />
-                        ))}
-                      </View>
-                    )}
+                    {availableFriendIds.length > 0 && (
+                    <View pointerEvents="none" style={styles.pipRow}>
+                      {availableFriendIds.map(friendId => (
+                        <View
+                          key={friendId}
+                          style={[
+                            styles.pip,
+                            { backgroundColor: friendProfiles[friendId]?.color ?? theme.gold },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  )}
                   </View>
                 );
               })}
